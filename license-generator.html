@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>POS Master Key Generator (Vendor Only)</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --border: #334155;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --accent: #10b981;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .container {
+      width: 100%;
+      max-width: 440px;
+      margin: 0 auto;
+    }
+    header {
+      text-align: center;
+      margin: 16px 0 24px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      background: rgba(59, 130, 246, 0.15);
+      border: 1px solid rgba(59, 130, 246, 0.4);
+      color: #60a5fa;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+    h1 {
+      font-size: 22px;
+      font-weight: 800;
+      color: #fff;
+    }
+    p.sub {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+      margin-bottom: 20px;
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    input, select {
+      width: 100%;
+      padding: 12px 14px;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: #fff;
+      font-size: 14px;
+      outline: none;
+      transition: all 0.2s;
+    }
+    input:focus, select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+    }
+    input.mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .btn {
+      width: 100%;
+      padding: 14px;
+      border-radius: 14px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.15s;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);
+    }
+    .btn-primary:active {
+      transform: scale(0.98);
+      background: var(--primary-hover);
+    }
+    .result-box {
+      margin-top: 20px;
+      padding: 16px;
+      background: #090d16;
+      border: 1px solid #1e3a5f;
+      border-radius: 14px;
+      display: none;
+    }
+    .result-key {
+      font-family: monospace;
+      font-size: 16px;
+      font-weight: 800;
+      color: #34d399;
+      text-align: center;
+      word-break: break-all;
+      padding: 8px 0;
+      letter-spacing: 1px;
+    }
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .btn-copy {
+      flex: 1;
+      padding: 10px;
+      background: #334155;
+      color: #fff;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+    }
+    .btn-wa {
+      flex: 1;
+      padding: 10px;
+      background: #059669;
+      color: #fff;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+    }
+    .history-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 16px;
+      margin-top: 12px;
+    }
+    .history-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .history-item {
+      padding: 10px;
+      background: #0f172a;
+      border-radius: 10px;
+      margin-bottom: 8px;
+      border: 1px solid #334155;
+      font-size: 12px;
+    }
+    .history-shop {
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      justify-content: space-between;
+    }
+    .history-key {
+      font-family: monospace;
+      color: #38bdf8;
+      font-size: 11px;
+      margin-top: 4px;
+    }
+    .history-time {
+      font-size: 10px;
+      color: #64748b;
+    }
+    /* Lock Screen Modal */
+    .lock-screen {
+      position: fixed;
+      inset: 0;
+      background: #090d16;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      z-index: 999;
+    }
+    .pin-input {
+      font-size: 24px;
+      text-align: center;
+      letter-spacing: 8px;
+      width: 160px;
+      padding: 12px;
+      margin: 16px 0;
+      border-radius: 14px;
+      background: #1e293b;
+      color: #fff;
+      border: 2px solid #334155;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- MASTER PIN LOCK SCREEN -->
+  <div id="lockScreen" class="lock-screen">
+    <div style="font-size: 40px; margin-bottom: 12px;">🔐</div>
+    <h2 style="font-size: 18px; font-weight: 800; color: #fff;">Vendor Access Only</h2>
+    <p style="font-size: 12px; color: #94a3b8; margin-top: 4px;">Enter your 4-digit Master Passcode</p>
+    <input type="password" id="pinInput" class="pin-input" maxlength="4" placeholder="••••" autofocus />
+    <button class="btn btn-primary" style="width: 160px; padding: 10px;" onclick="checkPin()">Unlock</button>
+    <p id="pinError" style="color: #ef4444; font-size: 11px; margin-top: 10px; display: none;">Incorrect Passcode</p>
+    <p style="font-size: 11px; color: #475569; margin-top: 24px;">Default PIN: <b>2026</b></p>
+  </div>
+
+  <div class="container" id="mainApp" style="display: none;">
+    <header>
+      <div class="badge">Vendor Master Tool</div>
+      <h1>License Generator</h1>
+      <p class="sub">Generate client hardware-locked license keys</p>
+    </header>
+
+    <div class="card">
+      <div class="form-group">
+        <label>Shop / Client Name</label>
+        <input type="text" id="shopName" placeholder="e.g. Sunil Grocery, Kandy" />
+      </div>
+
+      <div class="form-group">
+        <label>Hardware Machine ID *</label>
+        <input type="text" id="machineId" class="mono" placeholder="XXXX-XXXX-XXXX" />
+      </div>
+
+      <div class="form-group">
+        <label>License Plan</label>
+        <select id="planTier">
+          <option value="LIFETIME" selected>LIFETIME (One-time Fee)</option>
+          <option value="ANNUAL">ANNUAL (1 Year Validity)</option>
+        </select>
+      </div>
+
+      <button class="btn btn-primary" onclick="generateKey()">
+        ⚡ Generate License Key
+      </button>
+
+      <!-- RESULT -->
+      <div id="resultBox" class="result-box">
+        <div style="font-size: 11px; color: #94a3b8; text-transform: uppercase; font-weight: 700; text-align: center;">
+          Active License Key:
+        </div>
+        <div id="resultKey" class="result-key"></div>
+        <div class="btn-row">
+          <button class="btn-copy" onclick="copyKey()">📋 Copy Key</button>
+          <button class="btn-wa" onclick="sendWhatsApp()">💬 Send WhatsApp</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RECENT CLIENTS HISTORY -->
+    <div class="history-card">
+      <div class="history-title">
+        <span>Recent Generated Licenses</span>
+        <button onclick="clearHistory()" style="background: none; border: none; color: #ef4444; font-size: 11px; cursor: pointer;">Clear</button>
+      </div>
+      <div id="historyList">
+        <p style="color: #64748b; font-size: 11px; text-align: center; padding: 12px;">No licenses generated yet</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const MASTER_PIN = '2026';
+    const LICENSE_SECRET = 'POS_SYSTEM_SL_MASTER_KEY_2026_SECURE_AUTH';
+
+    function checkPin() {
+      const input = document.getElementById('pinInput').value;
+      if (input === MASTER_PIN) {
+        document.getElementById('lockScreen').style.display = 'none';
+        document.getElementById('mainApp').style.display = 'block';
+        loadHistory();
+      } else {
+        document.getElementById('pinError').style.display = 'block';
+        document.getElementById('pinInput').value = '';
+      }
+    }
+
+    document.getElementById('pinInput').addEventListener('keyup', (e) => {
+      if (e.key === 'Enter') checkPin();
+    });
+
+    async function generateKey() {
+      const shopName = document.getElementById('shopName').value.trim() || 'Retail Shop';
+      const machineId = document.getElementById('machineId').value.trim().toUpperCase();
+      const tier = document.getElementById('planTier').value;
+
+      if (!machineId) {
+        alert('Please enter or paste the Machine ID from the client shop!');
+        return;
+      }
+
+      const cleanId = machineId.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+      if (cleanId.length < 6) {
+        alert('Invalid Machine ID. Please check the format (XXXX-XXXX-XXXX).');
+        return;
+      }
+
+      const payload = `${cleanId}:${tier}`;
+      const encoder = new TextEncoder();
+      const keyData = encoder.encode(LICENSE_SECRET);
+      const msgData = encoder.encode(payload);
+
+      const cryptoKey = await window.crypto.subtle.importKey(
+        'raw',
+        keyData,
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+      );
+
+      const signatureBuffer = await window.crypto.subtle.sign('HMAC', cryptoKey, msgData);
+      const hashArray = Array.from(new Uint8Array(signatureBuffer));
+      const hex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+      const signature = hex.slice(0, 8);
+
+      const generatedKey = `POS-${tier.slice(0, 4)}-${cleanId.slice(0, 6)}-${signature}`;
+
+      // Show result
+      document.getElementById('resultKey').innerText = generatedKey;
+      document.getElementById('resultBox').style.display = 'block';
+
+      // Save to history
+      saveToHistory({
+        shop: shopName,
+        machineId: machineId,
+        tier: tier,
+        key: generatedKey,
+        time: new Date().toLocaleString()
+      });
+    }
+
+    function copyKey() {
+      const key = document.getElementById('resultKey').innerText;
+      navigator.clipboard.writeText(key).then(() => {
+        alert('Copied to clipboard: ' + key);
+      });
+    }
+
+    function sendWhatsApp() {
+      const key = document.getElementById('resultKey').innerText;
+      const shopName = document.getElementById('shopName').value.trim() || 'Valued Client';
+      const machineId = document.getElementById('machineId').value.trim();
+      const tier = document.getElementById('planTier').value;
+
+      const message = `*POS System License Activation*\n\n` +
+        `Hello ${shopName},\n` +
+        `Here is your official software license key:\n\n` +
+        `• *Machine ID:* ${machineId}\n` +
+        `• *Plan:* ${tier}\n` +
+        `• *License Key:* \`${key}\`\n\n` +
+        `Please open your POS System -> Settings -> Enter the key and click Activate.\n\n` +
+        `Thank you for your business!`;
+
+      const url = `https://wa.me/?text=${encodeURIComponent(message)}`;
+      window.open(url, '_blank');
+    }
+
+    function saveToHistory(item) {
+      let history = JSON.parse(localStorage.getItem('pos_license_history') || '[]');
+      history.unshift(item);
+      if (history.length > 20) history.pop();
+      localStorage.setItem('pos_license_history', JSON.stringify(history));
+      loadHistory();
+    }
+
+    function loadHistory() {
+      const history = JSON.parse(localStorage.getItem('pos_license_history') || '[]');
+      const container = document.getElementById('historyList');
+      if (history.length === 0) {
+        container.innerHTML = '<p style="color: #64748b; font-size: 11px; text-align: center; padding: 12px;">No licenses generated yet</p>';
+        return;
+      }
+      container.innerHTML = history.map(item => `
+        <div class="history-item">
+          <div class="history-shop">
+            <span>${item.shop}</span>
+            <span style="color: #10b981; font-size: 10px;">${item.tier}</span>
+          </div>
+          <div class="history-key">${item.key}</div>
+          <div class="history-time">${item.machineId} • ${item.time}</div>
+        </div>
+      `).join('');
+    }
+
+    function clearHistory() {
+      if (confirm('Clear license history?')) {
+        localStorage.removeItem('pos_license_history');
+        loadHistory();
+      }
+    }
+  </script>
+</body>
+</html>
