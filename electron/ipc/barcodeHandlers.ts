@@ -1,10 +1,10 @@
 import { ipcMain } from 'electron';
+import bwipjs from 'bwip-js';
 
 export function registerBarcodeHandlers() {
   // Generate barcode as base64 PNG
   ipcMain.handle('barcode:generate', async (_event, text: string, format = 'CODE128') => {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const isQr = format.toLowerCase() === 'qr';
       const options: any = {
         bcid: isQr ? 'qrcode' : 'code128',
