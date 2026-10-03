@@ -5,16 +5,19 @@ export function registerBarcodeHandlers() {
   ipcMain.handle('barcode:generate', async (_event, text: string, format = 'CODE128') => {
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const bwipjs = require('bwip-js');
-      const png = await bwipjs.toBuffer({
-        bcid: format.toLowerCase() === 'qr' ? 'qrcode' : 'code128',
+      const isQr = format.toLowerCase() === 'qr';
+      const options: any = {
+        bcid: isQr ? 'qrcode' : 'code128',
         text: text,
-        scale: 3,
-        height: 10,
-        includetext: true,
-        textxalign: 'center',
-        textyoffset: 2,
-      });
+        scale: isQr ? 4 : 3,
+      };
+      if (!isQr) {
+        options.height = 10;
+        options.includetext = true;
+        options.textxalign = 'center';
+        options.textyoffset = 2;
+      }
+      const png = await bwipjs.toBuffer(options);
       return { success: true, data: png.toString('base64') };
     } catch (err) {
       return { success: false, error: String(err) };
