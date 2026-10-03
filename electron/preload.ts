@@ -61,6 +61,12 @@ contextBridge.exposeInMainWorld('api', {
   generateBarcode: (text: string, format?: string) => ipcRenderer.invoke('barcode:generate', text, format),
   generateUniqueBarcode: () => ipcRenderer.invoke('barcode:generateUnique'),
 
+  // Stock Batches & Expiry (FIFO)
+  receiveStockBatch: (data: unknown) => ipcRenderer.invoke('stock:receiveBatch', data),
+  getProductBatches: (productId: number) => ipcRenderer.invoke('stock:getBatches', productId),
+  getExpiringProducts: (days?: number) => ipcRenderer.invoke('stock:getExpiring', days),
+  adjustStockBatch: (data: unknown) => ipcRenderer.invoke('stock:adjustBatch', data),
+
   // Hold bills
   holdSave: (data: unknown) => ipcRenderer.invoke('hold:save', data),
   holdGetAll: () => ipcRenderer.invoke('hold:getAll'),

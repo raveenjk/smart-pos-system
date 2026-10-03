@@ -47,6 +47,29 @@ export function registerSaleHandlers() {
         if (item.product_id) {
           db.prepare("UPDATE products SET stock = stock - ?, updated_at = datetime('now'), synced = 0 WHERE id = ?")
             .run(item.quantity, item.product_id);
+
+          // FIFO Batch Deduction: Deplete oldest / earliest expiring batches first
+          let neededQty = Number(item.quantity);
+          const batches = db.prepare(`
+            SELECT id, quantity_remaining
+            FROM product_batches
+            WHERE product_id = ? AND quantity_remaining > 0 AND is_active = 1
+            ORDER BY
+              CASE WHEN expiry_date IS NULL OR expiry_date = '' THEN 1 ELSE 0 END,
+              expiry_date ASC,
+              id ASC
+          `).all(item.product_id) as Array<{ id: number; quantity_remaining: number }>;
+
+          for (const batch of batches) {
+            if (neededQty <= 0) break;
+            const deduct = Math.min(batch.quantity_remaining, neededQty);
+            db.prepare(`
+              UPDATE product_batches
+              SET quantity_remaining = quantity_remaining - ?, updated_at = datetime('now'), synced = 0
+              WHERE id = ?
+            `).run(deduct, batch.id);
+            neededQty -= deduct;
+          }
         }
       }
 

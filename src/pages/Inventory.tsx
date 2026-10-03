@@ -1,9 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Plus, Search, Edit2, Trash2, AlertTriangle, Barcode, X, RefreshCw, Lock, Tags } from 'lucide-react';
+import {
+  Plus, Search, Edit2, Trash2, AlertTriangle, Barcode, X, RefreshCw, Lock, Tags,
+  PackagePlus, Layers, Calendar, Clock, CheckCircle
+} from 'lucide-react';
 import type { Product, Category } from '../types';
 import { useAuthStore } from '../stores/authStore';
 import CategoryModal from '../components/inventory/CategoryModal';
 import BarcodeModal from '../components/inventory/BarcodeModal';
+import StockInModal from '../components/inventory/StockInModal';
+import BatchHistoryModal from '../components/inventory/BatchHistoryModal';
 
 export default function Inventory() {
   const { can } = useAuthStore();
@@ -12,8 +17,12 @@ export default function Inventory() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
+  const [filterMode, setFilterMode] = useState<'all' | 'low_stock' | 'expiring_soon' | 'expired'>('all');
   const [showForm, setShowForm] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [showStockInModal, setShowStockInModal] = useState(false);
+  const [stockInProduct, setStockInProduct] = useState<Product | null>(null);
+  const [batchHistoryProduct, setBatchHistoryProduct] = useState<Product | null>(null);
   const [editing, setEditing] = useState<Product | null>(null);
   const [selectedBarcodeProduct, setSelectedBarcodeProduct] = useState<Product | null>(null);
   const [form, setForm] = useState({
@@ -33,7 +42,24 @@ export default function Inventory() {
   const filtered = products.filter((p) => {
     const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.barcode?.includes(search);
     const matchCat = selectedCategory === null || p.category_id === selectedCategory;
-    return matchSearch && matchCat;
+
+    let matchFilter = true;
+    if (filterMode === 'low_stock') {
+      matchFilter = p.stock <= p.low_stock_alert;
+    } else if (filterMode === 'expiring_soon') {
+      matchFilter =
+        p.days_until_expiry !== null &&
+        p.days_until_expiry !== undefined &&
+        p.days_until_expiry >= 0 &&
+        p.days_until_expiry <= 30;
+    } else if (filterMode === 'expired') {
+      matchFilter =
+        p.days_until_expiry !== null &&
+        p.days_until_expiry !== undefined &&
+        p.days_until_expiry < 0;
+    }
+
+    return matchSearch && matchCat && matchFilter;
   });
 
   const handleSave = async () => {
@@ -91,14 +117,23 @@ export default function Inventory() {
         </div>
         <div className="flex items-center gap-2.5">
           <button
+            onClick={() => {
+              setStockInProduct(null);
+              setShowStockInModal(true);
+            }}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold transition-colors shadow-md shadow-emerald-200 cursor-pointer"
+          >
+            <PackagePlus size={16} /> Receive Stock
+          </button>
+          <button
             onClick={() => setShowCategoryModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
           >
             <Tags size={16} /> Categories
           </button>
           <button
             onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors shadow-md shadow-blue-200"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors shadow-md shadow-blue-200 cursor-pointer"
           >
             <Plus size={16} /> Add Product
           </button>
@@ -127,18 +162,30 @@ export default function Inventory() {
         </select>
       </div>
 
-      {/* Stats row */}
-      <div className="flex gap-3 mb-4">
+      {/* Stats & Quick Filter Row */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
         {[
-          { label: 'Total Products', value: products.length, color: 'bg-blue-50 text-blue-700' },
-          { label: 'Low Stock', value: products.filter((p) => p.stock <= p.low_stock_alert).length, color: 'bg-red-50 text-red-600' },
-          { label: 'Out of Stock', value: products.filter((p) => p.stock === 0).length, color: 'bg-gray-50 text-gray-600' },
-          { label: 'Categories', value: categories.length, color: 'bg-purple-50 text-purple-700' },
+          { id: 'all', label: 'All Products', count: products.length, color: 'bg-blue-50 text-blue-700 hover:bg-blue-100', activeRing: 'ring-2 ring-blue-600' },
+          { id: 'low_stock', label: 'Low Stock', count: products.filter((p) => p.stock <= p.low_stock_alert).length, color: 'bg-orange-50 text-orange-700 hover:bg-orange-100', activeRing: 'ring-2 ring-orange-600' },
+          { id: 'expiring_soon', label: 'Expiring Soon (30d)', count: products.filter((p) => p.days_until_expiry !== null && p.days_until_expiry !== undefined && p.days_until_expiry >= 0 && p.days_until_expiry <= 30).length, color: 'bg-amber-50 text-amber-800 hover:bg-amber-100', activeRing: 'ring-2 ring-amber-600' },
+          { id: 'expired', label: 'Expired Stock', count: products.filter((p) => p.days_until_expiry !== null && p.days_until_expiry !== undefined && p.days_until_expiry < 0).length, color: 'bg-red-50 text-red-700 hover:bg-red-100', activeRing: 'ring-2 ring-red-600' },
+          { id: 'categories', label: 'Categories', count: categories.length, color: 'bg-purple-50 text-purple-700 hover:bg-purple-100', activeRing: '' },
         ].map((s) => (
-          <div key={s.label} className={`${s.color} rounded-xl px-4 py-2 text-center`}>
-            <p className="text-xl font-bold">{s.value}</p>
-            <p className="text-xs opacity-80">{s.label}</p>
-          </div>
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => {
+              if (s.id === 'categories') {
+                setShowCategoryModal(true);
+              } else {
+                setFilterMode((curr) => (curr === s.id ? 'all' : (s.id as any)));
+              }
+            }}
+            className={`${s.color} ${filterMode === s.id && s.id !== 'categories' ? s.activeRing : ''} rounded-xl px-4 py-2.5 text-center transition-all cursor-pointer text-left shadow-2xs`}
+          >
+            <p className="text-xl font-black">{s.count}</p>
+            <p className="text-xs font-semibold opacity-80">{s.label}</p>
+          </button>
         ))}
       </div>
 
@@ -148,7 +195,7 @@ export default function Inventory() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b sticky top-0">
               <tr>
-                {['Name', 'Barcode', 'Category', 'Price', 'Cost / Margin', 'Stock', 'Actions'].map((h) => (
+                {['Name', 'Barcode', 'Category', 'Price', 'Cost / Margin', 'Stock / Batches', 'Actions'].map((h) => (
                   <th key={h} className="text-left px-4 py-3 text-xs text-gray-500 font-semibold uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -180,16 +227,83 @@ export default function Inventory() {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <div className={`flex items-center gap-1 font-semibold text-sm ${p.stock === 0 ? 'text-red-600' : p.stock <= p.low_stock_alert ? 'text-orange-500' : 'text-green-600'}`}>
-                      {p.stock <= p.low_stock_alert && <AlertTriangle size={12} />}
-                      {p.stock} <span className="text-xs font-normal text-gray-400">{p.unit}</span>
+                    <div className="space-y-1">
+                      <div className={`flex items-center gap-1 font-semibold text-sm ${p.stock === 0 ? 'text-red-600' : p.stock <= p.low_stock_alert ? 'text-orange-500' : 'text-green-600'}`}>
+                        {p.stock <= p.low_stock_alert && <AlertTriangle size={12} />}
+                        {p.stock} <span className="text-xs font-normal text-gray-400">{p.unit}</span>
+                      </div>
+
+                      {/* Batches indicator & Earliest Expiry Badge */}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {p.active_batch_count !== undefined && p.active_batch_count > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setBatchHistoryProduct(p)}
+                            title="Click to inspect all active batches"
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors cursor-pointer"
+                          >
+                            <Layers size={10} /> {p.active_batch_count} {p.active_batch_count === 1 ? 'Batch' : 'Batches'}
+                          </button>
+                        )}
+
+                        {p.earliest_expiry && p.days_until_expiry !== null && p.days_until_expiry !== undefined && (
+                          p.days_until_expiry < 0 ? (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold text-red-700 bg-red-100 animate-pulse" title={`Expired on ${p.earliest_expiry}`}>
+                              <AlertTriangle size={10} /> Expired ({p.earliest_expiry})
+                            </span>
+                          ) : p.days_until_expiry <= 30 ? (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold text-amber-800 bg-amber-100" title={`Expires on ${p.earliest_expiry}`}>
+                              <Clock size={10} /> Exp: {p.days_until_expiry}d ({p.earliest_expiry})
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-semibold text-emerald-800 bg-emerald-50" title={`Expires on ${p.earliest_expiry}`}>
+                              <Calendar size={10} /> {p.earliest_expiry}
+                            </span>
+                          )
+                        )}
+                      </div>
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => showBarcode(p)} title="Barcode & QR Tag Studio (Sticker / Clothing)" className="text-gray-400 hover:text-purple-600 transition-colors cursor-pointer p-1 hover:bg-purple-50 rounded-lg"><Barcode size={16} /></button>
-                      <button onClick={() => handleEdit(p)} title="Edit" className="text-gray-400 hover:text-blue-600 transition-colors cursor-pointer p-1 hover:bg-blue-50 rounded-lg"><Edit2 size={15} /></button>
-                      <button onClick={() => handleDelete(p.id)} title="Delete" className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer p-1 hover:bg-red-50 rounded-lg"><Trash2 size={15} /></button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => {
+                          setStockInProduct(p);
+                          setShowStockInModal(true);
+                        }}
+                        title="Receive Stock / Add Batch (+ GRN)"
+                        className="text-gray-400 hover:text-emerald-600 transition-colors cursor-pointer p-1.5 hover:bg-emerald-50 rounded-lg"
+                      >
+                        <PackagePlus size={16} />
+                      </button>
+                      <button
+                        onClick={() => setBatchHistoryProduct(p)}
+                        title="View Batches & Expiry Dates"
+                        className="text-gray-400 hover:text-indigo-600 transition-colors cursor-pointer p-1.5 hover:bg-indigo-50 rounded-lg"
+                      >
+                        <Layers size={16} />
+                      </button>
+                      <button
+                        onClick={() => showBarcode(p)}
+                        title="Barcode & QR Tag Studio (Sticker / Clothing)"
+                        className="text-gray-400 hover:text-purple-600 transition-colors cursor-pointer p-1.5 hover:bg-purple-50 rounded-lg"
+                      >
+                        <Barcode size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleEdit(p)}
+                        title="Edit Product"
+                        className="text-gray-400 hover:text-blue-600 transition-colors cursor-pointer p-1.5 hover:bg-blue-50 rounded-lg"
+                      >
+                        <Edit2 size={15} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(p.id)}
+                        title="Delete Product"
+                        className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer p-1.5 hover:bg-red-50 rounded-lg"
+                      >
+                        <Trash2 size={15} />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -296,6 +410,31 @@ export default function Inventory() {
           </div>
         </div>
       )}
+
+      {/* Barcode & Clothing QR Price Tag Studio Modal */}
+      {/* Stock In / Receive Batch Modal */}
+      <StockInModal
+        isOpen={showStockInModal}
+        onClose={() => {
+          setShowStockInModal(false);
+          setStockInProduct(null);
+        }}
+        products={products}
+        selectedProduct={stockInProduct}
+        onStockReceived={load}
+      />
+
+      {/* Batch History Inspector Modal */}
+      <BatchHistoryModal
+        product={batchHistoryProduct}
+        isOpen={Boolean(batchHistoryProduct)}
+        onClose={() => setBatchHistoryProduct(null)}
+        onOpenReceiveStock={(prod) => {
+          setStockInProduct(prod);
+          setShowStockInModal(true);
+        }}
+        onBatchAdjusted={load}
+      />
 
       {/* Barcode & Clothing QR Price Tag Studio Modal */}
       <BarcodeModal

@@ -16,6 +16,42 @@ export interface Product {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  earliest_expiry?: string | null;
+  active_batch_count?: number;
+  days_until_expiry?: number | null;
+}
+
+export interface ProductBatch {
+  id: number;
+  product_id: number;
+  product_name?: string;
+  product_barcode?: string;
+  product_unit?: string;
+  batch_number: string;
+  quantity_received: number;
+  quantity_remaining: number;
+  cost_price: number;
+  selling_price: number;
+  expiry_date?: string | null;
+  received_date: string;
+  supplier_note?: string;
+  is_active: boolean;
+  days_left?: number | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ReceiveBatchPayload {
+  product_id: number;
+  batch_number?: string;
+  quantity: number;
+  cost_price?: number;
+  selling_price?: number;
+  expiry_date?: string;
+  received_date?: string;
+  supplier_note?: string;
+  update_master_price?: boolean;
+  employee_id?: number;
 }
 
 export interface Category {
@@ -205,6 +241,11 @@ declare global {
       // Barcode
       generateBarcode: (text: string, format?: string) => Promise<{ success: boolean; data?: string }>;
       generateUniqueBarcode: () => Promise<string>;
+      // Stock Batches & Expiry (FIFO)
+      receiveStockBatch: (data: ReceiveBatchPayload) => Promise<{ success: boolean; batch_id?: number; batch_number?: string; error?: string }>;
+      getProductBatches: (productId: number) => Promise<ProductBatch[]>;
+      getExpiringProducts: (days?: number) => Promise<ProductBatch[]>;
+      adjustStockBatch: (data: { batch_id: number; new_quantity: number; reason: string; employee_id?: number }) => Promise<{ success: boolean; error?: string }>;
       // Hold Bills
       holdSave: (data: any) => Promise<{ id: number | bigint }>;
       holdGetAll: () => Promise<any[]>;

@@ -10,6 +10,7 @@ import { registerPrinterHandlers } from './ipc/printerHandlers';
 import { registerBarcodeHandlers } from './ipc/barcodeHandlers';
 import { registerHoldHandlers } from './ipc/holdHandlers';
 import { registerLicenseHandlers } from './ipc/licenseHandlers';
+import { registerStockHandlers } from './ipc/stockHandlers';
 import { startSyncEngine } from './sync/syncEngine';
 import { startDeveloperServer, getDeveloperServerPort } from './server/developerServer';
 import { getDb } from './database/schema';
@@ -76,6 +77,7 @@ app.whenReady().then(async () => {
   registerBarcodeHandlers();
   registerHoldHandlers();
   registerLicenseHandlers();
+  registerStockHandlers();
 
   // Maintenance & Developer Portal IPC
   ipcMain.handle('system:getMaintenanceStatus', () => {

@@ -131,6 +131,48 @@ const INITIAL_EMPLOYEES: Employee[] = [
   { id: 3, name: 'Nalaka (Manager)', role: 'manager', phone: '0783334455', is_active: true },
 ];
 
+const INITIAL_BATCHES: any[] = [
+  {
+    id: 1,
+    product_id: 1,
+    batch_number: 'B202609-01',
+    quantity_received: 25,
+    quantity_remaining: 20,
+    cost_price: 310,
+    selling_price: 360,
+    expiry_date: '2026-10-25', // Expiring in ~21 days (Expiring soon!)
+    received_date: '2026-09-01',
+    supplier_note: 'Old Batch (Expiring Soon)',
+    is_active: true,
+  },
+  {
+    id: 2,
+    product_id: 1,
+    batch_number: 'B202610-02',
+    quantity_received: 25,
+    quantity_remaining: 25,
+    cost_price: 320,
+    selling_price: 380,
+    expiry_date: '2027-08-30', // Fresh
+    received_date: '2026-10-01',
+    supplier_note: 'New Stock Delivery',
+    is_active: true,
+  },
+  {
+    id: 3,
+    product_id: 2,
+    batch_number: 'MILK-202609-A',
+    quantity_received: 24,
+    quantity_remaining: 24,
+    cost_price: 420,
+    selling_price: 480,
+    expiry_date: '2026-10-10', // Expiring in 6 days!
+    received_date: '2026-10-01',
+    supplier_note: 'Fresh Milk delivery',
+    is_active: true,
+  },
+];
+
 function getStored<T>(key: string, fallback: T): T {
   try {
     const val = localStorage.getItem(`pos_mock_${key}`);
@@ -157,6 +199,7 @@ export function setupBrowserMockApi() {
   let categories = getStored<Category[]>('categories', INITIAL_CATEGORIES);
   let customers = getStored<Customer[]>('customers', INITIAL_CUSTOMERS);
   let employees = getStored<Employee[]>('employees', INITIAL_EMPLOYEES);
+  let batches = getStored<any[]>('batches', INITIAL_BATCHES);
   let sales: any[] = getStored<any[]>('sales', []);
   let heldBills: any[] = getStored<any[]>('held_bills', []);
 
@@ -177,10 +220,33 @@ export function setupBrowserMockApi() {
     license_activated: 'true',
   });
 
+  const enrichProduct = (p: Product): Product => {
+    const today = new Date();
+    const prodBatches = batches.filter((b) => b.product_id === p.id && b.quantity_remaining > 0 && b.is_active);
+    const sortedWithExpiry = prodBatches
+      .filter((b) => b.expiry_date)
+      .sort((a, b) => (a.expiry_date || '').localeCompare(b.expiry_date || ''));
+    const earliest = sortedWithExpiry[0]?.expiry_date || null;
+    let daysLeft: number | null = null;
+    if (earliest) {
+      const exp = new Date(earliest);
+      daysLeft = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    }
+    return {
+      ...p,
+      earliest_expiry: earliest,
+      active_batch_count: prodBatches.length,
+      days_until_expiry: daysLeft,
+    };
+  };
+
   window.api = {
     // Products
-    getProducts: async () => products.filter((p) => p.is_active),
-    getProduct: async (id: number) => products.find((p) => p.id === id) as Product,
+    getProducts: async () => products.filter((p) => p.is_active).map(enrichProduct),
+    getProduct: async (id: number) => {
+      const found = products.find((p) => p.id === id);
+      return found ? enrichProduct(found) : (null as any);
+    },
     createProduct: async (data: Partial<Product>) => {
       const newP: Product = {
         id: Date.now(),
@@ -215,7 +281,9 @@ export function setupBrowserMockApi() {
     },
     searchProducts: async (q: string) => {
       const lower = q.toLowerCase();
-      return products.filter((p) => p.name.toLowerCase().includes(lower) || p.barcode?.includes(lower));
+      return products
+        .filter((p) => (p.name.toLowerCase().includes(lower) || p.barcode?.includes(lower)) && p.is_active)
+        .map(enrichProduct);
     },
     getProductByBarcode: async (barcode: string) => {
       return products.find((p) => p.barcode === barcode && p.is_active) || null;
@@ -254,8 +322,22 @@ export function setupBrowserMockApi() {
         data.items.forEach((item: any) => {
           const prod = products.find((p) => p.id === item.product_id);
           if (prod) prod.stock = Math.max(0, prod.stock - item.quantity);
+
+          // FIFO Batch Deduction
+          let needed = Number(item.quantity);
+          const prodBatches = batches
+            .filter((b) => b.product_id === item.product_id && b.quantity_remaining > 0 && b.is_active)
+            .sort((a, b) => (a.expiry_date || '9999').localeCompare(b.expiry_date || '9999'));
+
+          for (const b of prodBatches) {
+            if (needed <= 0) break;
+            const deduct = Math.min(b.quantity_remaining, needed);
+            b.quantity_remaining -= deduct;
+            needed -= deduct;
+          }
         });
         setStored('products', products);
+        setStored('batches', batches);
       }
 
       return { id: newSale.id, invoice_number: invoiceNumber };
@@ -428,6 +510,97 @@ export function setupBrowserMockApi() {
       }
     },
     generateUniqueBarcode: async () => `${Date.now()}`.slice(-10),
+
+    // Stock Batches & Expiry (FIFO)
+    receiveStockBatch: async (data: any) => {
+      const prod = products.find((p) => p.id === data.product_id);
+      if (!prod) return { success: false, error: 'Product not found' };
+
+      const now = new Date();
+      const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+      const batchNo = data.batch_number?.trim() || `B${dateStr}-${Math.floor(100 + Math.random() * 900)}`;
+      const qty = Number(data.quantity) || 0;
+      const cost = data.cost_price !== undefined ? Number(data.cost_price) : prod.cost_price;
+      const price = data.selling_price !== undefined ? Number(data.selling_price) : prod.price;
+
+      const newBatch: any = {
+        id: Date.now(),
+        product_id: data.product_id,
+        batch_number: batchNo,
+        quantity_received: qty,
+        quantity_remaining: qty,
+        cost_price: cost,
+        selling_price: price,
+        expiry_date: data.expiry_date || null,
+        received_date: data.received_date || now.toISOString().slice(0, 10),
+        supplier_note: data.supplier_note || '',
+        is_active: true,
+      };
+
+      batches = [newBatch, ...batches];
+      setStored('batches', batches);
+
+      // Update product stock and optionally price
+      prod.stock = (prod.stock || 0) + qty;
+      if (data.update_master_price) {
+        prod.price = price;
+        prod.cost_price = cost;
+      }
+      setStored('products', products);
+
+      return { success: true, batch_id: newBatch.id, batch_number: batchNo };
+    },
+
+    getProductBatches: async (productId: number) => {
+      const today = new Date();
+      return batches
+        .filter((b) => b.product_id === productId)
+        .map((b) => {
+          let daysLeft: number | null = null;
+          if (b.expiry_date) {
+            daysLeft = Math.ceil((new Date(b.expiry_date).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          }
+          return { ...b, days_left: daysLeft };
+        })
+        .sort((a, b) => (b.quantity_remaining > 0 ? 1 : 0) - (a.quantity_remaining > 0 ? 1 : 0));
+    },
+
+    getExpiringProducts: async (days = 30) => {
+      const today = new Date();
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() + days);
+
+      return batches
+        .filter((b) => b.is_active && b.quantity_remaining > 0 && b.expiry_date)
+        .filter((b) => new Date(b.expiry_date!) <= cutoff)
+        .map((b) => {
+          const prod = products.find((p) => p.id === b.product_id);
+          const daysLeft = Math.ceil((new Date(b.expiry_date!).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          return {
+            ...b,
+            product_name: prod?.name || 'Unknown Item',
+            product_barcode: prod?.barcode,
+            product_unit: prod?.unit || 'pcs',
+            days_left: daysLeft,
+          };
+        })
+        .sort((a, b) => (a.expiry_date || '').localeCompare(b.expiry_date || ''));
+    },
+
+    adjustStockBatch: async (data: any) => {
+      const b = batches.find((x) => x.id === data.batch_id);
+      if (!b) return { success: false, error: 'Batch not found' };
+      const diff = Number(data.new_quantity) - b.quantity_remaining;
+      b.quantity_remaining = Number(data.new_quantity);
+      setStored('batches', batches);
+
+      const prod = products.find((p) => p.id === b.product_id);
+      if (prod) {
+        prod.stock = Math.max(0, prod.stock + diff);
+        setStored('products', products);
+      }
+      return { success: true };
+    },
 
     // Hold Bills
     holdSave: async (data: any) => {

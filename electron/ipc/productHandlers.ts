@@ -7,7 +7,26 @@ export function registerProductHandlers() {
   // Get all products
   ipcMain.handle('products:getAll', () => {
     return db.prepare(`
-      SELECT p.*, c.name as category_name
+      SELECT
+        p.*,
+        c.name as category_name,
+        (
+          SELECT MIN(b.expiry_date)
+          FROM product_batches b
+          WHERE b.product_id = p.id AND b.quantity_remaining > 0 AND b.is_active = 1
+            AND b.expiry_date IS NOT NULL AND b.expiry_date != ''
+        ) as earliest_expiry,
+        (
+          SELECT COUNT(b.id)
+          FROM product_batches b
+          WHERE b.product_id = p.id AND b.quantity_remaining > 0 AND b.is_active = 1
+        ) as active_batch_count,
+        (
+          SELECT CAST(julianday(MIN(b.expiry_date)) - julianday('now') AS INTEGER)
+          FROM product_batches b
+          WHERE b.product_id = p.id AND b.quantity_remaining > 0 AND b.is_active = 1
+            AND b.expiry_date IS NOT NULL AND b.expiry_date != ''
+        ) as days_until_expiry
       FROM products p
       LEFT JOIN categories c ON p.category_id = c.id
       WHERE p.is_active = 1
@@ -28,7 +47,26 @@ export function registerProductHandlers() {
   // Search products
   ipcMain.handle('products:search', (_event, query: string) => {
     return db.prepare(`
-      SELECT p.*, c.name as category_name
+      SELECT
+        p.*,
+        c.name as category_name,
+        (
+          SELECT MIN(b.expiry_date)
+          FROM product_batches b
+          WHERE b.product_id = p.id AND b.quantity_remaining > 0 AND b.is_active = 1
+            AND b.expiry_date IS NOT NULL AND b.expiry_date != ''
+        ) as earliest_expiry,
+        (
+          SELECT COUNT(b.id)
+          FROM product_batches b
+          WHERE b.product_id = p.id AND b.quantity_remaining > 0 AND b.is_active = 1
+        ) as active_batch_count,
+        (
+          SELECT CAST(julianday(MIN(b.expiry_date)) - julianday('now') AS INTEGER)
+          FROM product_batches b
+          WHERE b.product_id = p.id AND b.quantity_remaining > 0 AND b.is_active = 1
+            AND b.expiry_date IS NOT NULL AND b.expiry_date != ''
+        ) as days_until_expiry
       FROM products p
       LEFT JOIN categories c ON p.category_id = c.id
       WHERE p.is_active = 1 AND (p.name LIKE ? OR p.barcode LIKE ?)

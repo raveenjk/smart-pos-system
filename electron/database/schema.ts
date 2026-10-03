@@ -50,6 +50,26 @@ export function initDatabase(): void {
       supabase_id TEXT
     );
 
+    -- Product Batches (Old vs New Stock, Lot Tracking & Expiry)
+    CREATE TABLE IF NOT EXISTS product_batches (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+      batch_number TEXT NOT NULL,
+      quantity_received REAL NOT NULL,
+      quantity_remaining REAL NOT NULL,
+      cost_price REAL DEFAULT 0,
+      selling_price REAL DEFAULT 0,
+      expiry_date TEXT,
+      received_date TEXT DEFAULT (date('now')),
+      supplier_note TEXT,
+      is_active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      synced INTEGER DEFAULT 0
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_batches_product_expiry ON product_batches(product_id, expiry_date, quantity_remaining);
+
     -- Customers
     CREATE TABLE IF NOT EXISTS customers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
