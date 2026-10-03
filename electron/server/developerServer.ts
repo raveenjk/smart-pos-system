@@ -857,7 +857,7 @@ function renderDeveloperPortalHTML(port: number): string {
           body: JSON.stringify({ tier }),
         });
         if (res.success) {
-          showToast(`⚡ ${res.message} (${res.licenseKey})`);
+          showToast('⚡ ' + res.message + ' (' + res.licenseKey + ')');
           checkAuthAndLoad();
         } else {
           showToast(res.message || 'Instant activation failed', true);
