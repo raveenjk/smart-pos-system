@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import {
-  Save, Store, Receipt, Wifi, KeyRound, Copy, Check,
-  ShieldCheck, AlertTriangle, RefreshCw, Upload, Image as ImageIcon,
+  Save, Store, Receipt, Upload, Image as ImageIcon,
   Trash2, Printer, Sparkles
 } from 'lucide-react';
 import type { AppSettings } from '../types';
@@ -11,26 +10,10 @@ export default function Settings() {
   const { settings, updateSettings, loadSettings } = useSettingsStore();
   const [formData, setFormData] = useState<Partial<AppSettings>>({});
   const [saved, setSaved] = useState(false);
-  const [licenseInfo, setLicenseInfo] = useState<{
-    isActivated: boolean;
-    machineId: string;
-    licenseKey: string;
-    tier: string;
-  } | null>(null);
-  const [inputKey, setInputKey] = useState('');
-  const [activateMsg, setActivateMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [syncing, setSyncing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadSettings();
-    if (window.api?.getLicenseStatus) {
-      window.api.getLicenseStatus().then((lic) => {
-        setLicenseInfo(lic || null);
-        if (lic?.licenseKey) setInputKey(lic.licenseKey);
-      });
-    }
   }, [loadSettings]);
 
   useEffect(() => {
@@ -70,39 +53,8 @@ export default function Settings() {
     }
   };
 
-  const handleCopyMachineId = () => {
-    if (licenseInfo?.machineId) {
-      navigator.clipboard.writeText(licenseInfo.machineId);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  const handleActivateLicense = async () => {
-    if (!inputKey.trim()) {
-      setActivateMsg({ type: 'error', text: 'Please enter a license key' });
-      return;
-    }
-    const res = await window.api?.activateLicense(inputKey);
-    if (res?.success) {
-      setActivateMsg({ type: 'success', text: res.message });
-      if (window.api?.getLicenseStatus) {
-        const lic = await window.api.getLicenseStatus();
-        setLicenseInfo(lic || null);
-      }
-    } else {
-      setActivateMsg({ type: 'error', text: res?.message || 'Activation failed' });
-    }
-  };
-
-  const handleManualSync = async () => {
-    setSyncing(true);
-    try {
-      await window.api?.forcSync();
-      setTimeout(() => setSyncing(false), 1500);
-    } catch {
-      setSyncing(false);
-    }
+  const handleOpenDevPortal = () => {
+    window.api?.openDeveloperPortal?.();
   };
 
   const handleTestPrint = async () => {
@@ -380,132 +332,21 @@ export default function Settings() {
             </div>
           </section>
 
-          {/* 3. Software License Section */}
-          <section className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-purple-50 text-purple-600 rounded-xl">
-                  <KeyRound size={20} />
-                </div>
-                <div>
-                  <h2 className="font-bold text-gray-800 text-base">Machine License</h2>
-                  <p className="text-xs text-gray-400">Lock software to client hardware</p>
-                </div>
-              </div>
-              {licenseInfo?.isActivated ? (
-                <span className="flex items-center gap-1.5 px-3 py-1 bg-green-50 text-green-700 border border-green-200 text-xs font-bold rounded-full">
-                  <ShieldCheck size={14} />
-                  {licenseInfo.tier}
-                </span>
-              ) : (
-                <span className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-700 border border-amber-200 text-xs font-bold rounded-full">
-                  <AlertTriangle size={14} />
-                  UNREGISTERED
-                </span>
-              )}
+          {/* System Administration Notice */}
+          <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-between text-xs text-gray-500">
+            <div>
+              <p className="font-semibold text-gray-700">System Licensing & Cloud Architecture</p>
+              <p className="text-[11px] text-gray-400 mt-0.5">Managed exclusively via Developer Super Admin Console</p>
             </div>
-
-            <div className="space-y-4">
-              <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-200/70 flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] text-gray-500 font-semibold uppercase tracking-wider">
-                    Hardware Machine ID
-                  </p>
-                  <p className="text-sm font-mono font-bold text-gray-800 mt-0.5">
-                    {licenseInfo?.machineId || 'Generating...'}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleCopyMachineId}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-gray-100 text-gray-700 text-xs font-semibold rounded-xl border shadow-2xs transition-colors"
-                >
-                  {copied ? <Check size={14} className="text-green-600" /> : <Copy size={14} />}
-                  {copied ? 'Copied' : 'Copy ID'}
-                </button>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">
-                  Activation Key
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={inputKey}
-                    onChange={(e) => {
-                      setInputKey(e.target.value);
-                      setActivateMsg(null);
-                    }}
-                    placeholder="POS-LIFE-XXXXXX-XXXXXXXX"
-                    className="flex-1 font-mono uppercase border rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleActivateLicense}
-                    className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold shadow-xs active:scale-95 transition-all"
-                  >
-                    Activate
-                  </button>
-                </div>
-                {activateMsg && (
-                  <p className={`text-xs mt-2 font-medium ${activateMsg.type === 'success' ? 'text-green-600' : 'text-red-500'}`}>
-                    {activateMsg.text}
-                  </p>
-                )}
-              </div>
-            </div>
-          </section>
-
-          {/* 4. Cloud Sync Section */}
-          <section className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
-                  <Wifi size={20} />
-                </div>
-                <div>
-                  <h2 className="font-bold text-gray-800 text-base">Cloud Sync (Supabase)</h2>
-                  <p className="text-xs text-gray-400">Offline-first cloud backup & mobile app sync</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={handleManualSync}
-                disabled={syncing}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg border transition-colors"
-              >
-                <RefreshCw size={13} className={syncing ? 'animate-spin text-blue-600' : ''} />
-                {syncing ? 'Syncing...' : 'Sync'}
-              </button>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">
-                  Supabase URL
-                </label>
-                <input
-                  type="text"
-                  value={formData.supabase_url || ''}
-                  onChange={(e) => handleChange('supabase_url', e.target.value)}
-                  placeholder="https://xxx.supabase.co"
-                  className="w-full border rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">
-                  Supabase Anon Key
-                </label>
-                <input
-                  type="password"
-                  value={formData.supabase_key || ''}
-                  onChange={(e) => handleChange('supabase_key', e.target.value)}
-                  placeholder="eyJhbGciOiJIUzI1NiIsInR5c..."
-                  className="w-full border rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
-                />
-              </div>
-            </div>
-          </section>
+            <button
+              type="button"
+              onClick={handleOpenDevPortal}
+              title="Shortcut: Ctrl+Alt+D"
+              className="px-3 py-1.5 bg-white hover:bg-gray-100 border border-gray-200 rounded-xl font-bold text-gray-700 shadow-2xs transition-colors"
+            >
+              Developer Console ↗
+            </button>
+          </div>
         </div>
 
         {/* RIGHT COLUMN: Live 80mm Receipt Paper Studio (5 cols) */}

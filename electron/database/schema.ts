@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { app } from 'electron';
 import { join } from 'path';
 
-const DB_PATH = join(app.getPath('userData'), 'pos_database.db');
+export const DB_PATH = join(app.getPath('userData'), 'pos_database.db');
 
 let db: Database.Database;
 
@@ -154,7 +154,10 @@ export function initDatabase(): void {
       ('supabase_url', ''),
       ('supabase_key', ''),
       ('license_key', ''),
-      ('license_activated', 'false');
+      ('license_activated', 'false'),
+      ('dev_email', 'developer@gmail.com'),
+      ('maintenance_mode', 'false'),
+      ('maintenance_message', 'System maintenance in progress. Please contact your software vendor.');
 
     -- Default Category
     INSERT OR IGNORE INTO categories (id, name) VALUES (1, 'General');

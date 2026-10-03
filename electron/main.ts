@@ -11,6 +11,8 @@ import { registerBarcodeHandlers } from './ipc/barcodeHandlers';
 import { registerHoldHandlers } from './ipc/holdHandlers';
 import { registerLicenseHandlers } from './ipc/licenseHandlers';
 import { startSyncEngine } from './sync/syncEngine';
+import { startDeveloperServer, getDeveloperServerPort } from './server/developerServer';
+import { getDb } from './database/schema';
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -47,6 +49,10 @@ function createWindow() {
     if (input.key === 'F12') {
       mainWindow?.webContents.toggleDevTools();
     }
+    // Secret developer shortcut: Ctrl + Alt + D
+    if (input.control && input.alt && input.key.toLowerCase() === 'd') {
+      shell.openExternal(`http://localhost:${getDeveloperServerPort()}/developer`);
+    }
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -71,10 +77,30 @@ app.whenReady().then(async () => {
   registerHoldHandlers();
   registerLicenseHandlers();
 
+  // Maintenance & Developer Portal IPC
+  ipcMain.handle('system:getMaintenanceStatus', () => {
+    try {
+      const db = getDb();
+      const active = (db.prepare("SELECT value FROM settings WHERE key = 'maintenance_mode'").get() as any)?.value === 'true';
+      const message = (db.prepare("SELECT value FROM settings WHERE key = 'maintenance_message'").get() as any)?.value || 'System maintenance in progress. Please contact your vendor.';
+      return { active, message };
+    } catch {
+      return { active: false, message: '' };
+    }
+  });
+
+  ipcMain.handle('system:openDeveloperPortal', () => {
+    shell.openExternal(`http://localhost:${getDeveloperServerPort()}/developer`);
+    return { success: true };
+  });
+
   createWindow();
 
   // Start cloud sync engine
   startSyncEngine();
+
+  // Start Developer Super Admin HTTP Server
+  await startDeveloperServer(4800);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

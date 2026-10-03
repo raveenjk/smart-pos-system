@@ -212,6 +212,10 @@ declare global {
       getLicenseStatus: () => Promise<{ isActivated: boolean; machineId: string; licenseKey: string; tier: string }>;
       getMachineId: () => Promise<string>;
       activateLicense: (key: string) => Promise<{ success: boolean; message: string }>;
+      // Maintenance & Developer Portal
+      getMaintenanceStatus: () => Promise<{ active: boolean; message: string }>;
+      openDeveloperPortal: () => Promise<{ success: boolean }>;
+      onMaintenanceUpdate: (callback: (status: { active: boolean; message: string }) => void) => void;
     };
   }
 }
