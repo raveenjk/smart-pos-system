@@ -73,15 +73,37 @@ export function registerProductHandlers() {
     return { success: true };
   });
 
-  // Get categories
+  // Get categories with product count
   ipcMain.handle('products:getCategories', () => {
-    return db.prepare('SELECT * FROM categories ORDER BY name').all();
+    return db.prepare(`
+      SELECT c.*, (SELECT COUNT(*) FROM products p WHERE p.category_id = c.id AND p.is_active = 1) as product_count
+      FROM categories c
+      ORDER BY c.name
+    `).all();
   });
 
   // Create category
   ipcMain.handle('products:createCategory', (_event, data: any) => {
-    const result = db.prepare('INSERT INTO categories (name, description) VALUES (?, ?)').run(data.name, data.description);
-    return { id: result.lastInsertRowid, ...data };
+    try {
+      const stmt = db.prepare('INSERT INTO categories (name, description) VALUES (?, ?)');
+      const result = stmt.run(data.name.trim(), data.description ? data.description.trim() : null);
+      return { success: true, id: result.lastInsertRowid, name: data.name.trim() };
+    } catch (err: any) {
+      if (err.message && err.message.includes('UNIQUE')) {
+        return { success: false, message: 'A category with this name already exists' };
+      }
+      return { success: false, message: err.message || 'Failed to create category' };
+    }
+  });
+
+  // Delete category
+  ipcMain.handle('products:deleteCategory', (_event, id: number) => {
+    if (id === 1) {
+      return { success: false, message: 'Cannot delete the default General category' };
+    }
+    db.prepare('UPDATE products SET category_id = 1 WHERE category_id = ?').run(id);
+    db.prepare('DELETE FROM categories WHERE id = ?').run(id);
+    return { success: true };
   });
 
   // Get low stock products
