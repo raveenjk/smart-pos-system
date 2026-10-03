@@ -22,6 +22,7 @@ export interface Category {
   id: number;
   name: string;
   description?: string;
+  product_count?: number;
 }
 
 export interface Customer {
@@ -166,7 +167,8 @@ declare global {
       searchProducts: (query: string) => Promise<Product[]>;
       getProductByBarcode: (barcode: string) => Promise<Product | null>;
       getCategories: () => Promise<Category[]>;
-      createCategory: (data: Partial<Category>) => Promise<Category>;
+      createCategory: (data: Partial<Category>) => Promise<{ success: boolean; id?: number; name?: string; message?: string }>;
+      deleteCategory: (id: number) => Promise<{ success: boolean; message?: string }>;
       getLowStockProducts: () => Promise<Product[]>;
       // Sales
       createSale: (data: any) => Promise<{ id: number; invoice_number: string }>;

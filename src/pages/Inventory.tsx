@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Plus, Search, Edit2, Trash2, AlertTriangle, Barcode, X, RefreshCw, Lock } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, AlertTriangle, Barcode, X, RefreshCw, Lock, Tags } from 'lucide-react';
 import type { Product, Category } from '../types';
 import { useAuthStore } from '../stores/authStore';
+import CategoryModal from '../components/inventory/CategoryModal';
 
 export default function Inventory() {
   const { can } = useAuthStore();
@@ -11,6 +12,7 @@ export default function Inventory() {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [barcodeModal, setBarcodeModal] = useState<{ product: Product; img: string } | null>(null);
   const [form, setForm] = useState({
@@ -107,12 +109,20 @@ export default function Inventory() {
           <h1 className="text-2xl font-bold text-gray-800">Inventory</h1>
           <p className="text-sm text-gray-400">{products.length} products</p>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors shadow-md shadow-blue-200"
-        >
-          <Plus size={16} /> Add Product
-        </button>
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => setShowCategoryModal(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition-colors"
+          >
+            <Tags size={16} /> Categories
+          </button>
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors shadow-md shadow-blue-200"
+          >
+            <Plus size={16} /> Add Product
+          </button>
+        </div>
       </div>
 
       {/* Search + Category Filter */}
@@ -267,7 +277,16 @@ export default function Inventory() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-gray-500 mb-1.5 block">CATEGORY</label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold text-gray-500 block">CATEGORY</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowCategoryModal(true)}
+                      className="text-xs text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <Plus size={12} /> New
+                    </button>
+                  </div>
                   <select value={form.category_id} onChange={(e) => setForm((f) => ({ ...f, category_id: Number(e.target.value) }))} className="w-full border-2 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400">
                     {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
@@ -321,6 +340,13 @@ export default function Inventory() {
           </div>
         </div>
       )}
+
+      {/* Category Management Modal */}
+      <CategoryModal
+        isOpen={showCategoryModal}
+        onClose={() => setShowCategoryModal(false)}
+        onCategoryChanged={load}
+      />
     </div>
   );
 }

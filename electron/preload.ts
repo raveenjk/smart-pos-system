@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('api', {
   getProductByBarcode: (barcode: string) => ipcRenderer.invoke('products:getByBarcode', barcode),
   getCategories: () => ipcRenderer.invoke('products:getCategories'),
   createCategory: (data: unknown) => ipcRenderer.invoke('products:createCategory', data),
+  deleteCategory: (id: number) => ipcRenderer.invoke('products:deleteCategory', id),
   getLowStockProducts: () => ipcRenderer.invoke('products:getLowStock'),
 
   // Sales
