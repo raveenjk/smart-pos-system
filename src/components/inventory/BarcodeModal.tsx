@@ -7,9 +7,10 @@ interface BarcodeModalProps {
   product: Product | null;
   isOpen: boolean;
   onClose: () => void;
+  onProductUpdated?: () => void;
 }
 
-export default function BarcodeModal({ product, isOpen, onClose }: BarcodeModalProps) {
+export default function BarcodeModal({ product, isOpen, onClose, onProductUpdated }: BarcodeModalProps) {
   const { settings } = useSettingsStore();
   const [format, setFormat] = useState<'CODE128' | 'QR'>('CODE128');
   const [quantity, setQuantity] = useState(1);
@@ -19,16 +20,28 @@ export default function BarcodeModal({ product, isOpen, onClose }: BarcodeModalP
   const [imgData, setImgData] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [currentBarcode, setCurrentBarcode] = useState<string>('');
+  const [generatingBarcode, setGeneratingBarcode] = useState(false);
 
   const shopName = settings.shop_name || 'My Store';
 
-  // Load barcode / QR code whenever product or format changes
+  // Sync current barcode when product opens
   useEffect(() => {
-    if (!isOpen || !product?.barcode) return;
+    if (product) {
+      setCurrentBarcode(product.barcode || '');
+    }
+  }, [product, isOpen]);
+
+  // Load barcode / QR code whenever currentBarcode or format changes
+  useEffect(() => {
+    if (!isOpen || !currentBarcode) {
+      setImgData('');
+      return;
+    }
 
     setLoading(true);
     window.api
-      ?.generateBarcode(product.barcode, format)
+      ?.generateBarcode(currentBarcode, format)
       .then((res) => {
         if (res?.success && res.data) {
           setImgData(`data:image/png;base64,${res.data}`);
@@ -37,18 +50,34 @@ export default function BarcodeModal({ product, isOpen, onClose }: BarcodeModalP
       .finally(() => setLoading(false));
 
     // Reset default quantity to stock or 1
-    if (product.stock && product.stock > 0) {
+    if (product?.stock && product.stock > 0) {
       setQuantity(Math.min(product.stock, 50));
     } else {
       setQuantity(1);
     }
-  }, [isOpen, product, format]);
+  }, [isOpen, currentBarcode, format]);
 
   if (!isOpen || !product) return null;
 
+  const handleGenerateAndAssignBarcode = async () => {
+    if (!product) return;
+    setGeneratingBarcode(true);
+    try {
+      const code = await window.api.generateUniqueBarcode();
+      await window.api.updateProduct(product.id, { barcode: code });
+      setCurrentBarcode(code);
+      product.barcode = code;
+      onProductUpdated?.();
+    } catch (err) {
+      console.error('Failed to generate barcode:', err);
+    } finally {
+      setGeneratingBarcode(false);
+    }
+  };
+
   const handleCopyBarcode = () => {
-    if (product.barcode) {
-      navigator.clipboard.writeText(product.barcode);
+    if (currentBarcode) {
+      navigator.clipboard.writeText(currentBarcode);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
@@ -76,7 +105,7 @@ export default function BarcodeModal({ product, isOpen, onClose }: BarcodeModalP
           <div class="barcode-wrapper ${format === 'QR' ? 'is-qr' : ''}">
             <img src="${imgData}" alt="Code" />
           </div>
-          <div class="barcode-text font-mono">${product.barcode}</div>
+          <div class="barcode-text font-mono">${currentBarcode}</div>
           ${includePrice ? `<div class="price font-bold">LKR ${product.price.toFixed(2)}</div>` : ''}
         </div>
       `;
@@ -199,6 +228,30 @@ export default function BarcodeModal({ product, isOpen, onClose }: BarcodeModalP
         {/* Content */}
         <div className="p-5 overflow-y-auto space-y-5">
 
+          {/* Missing Barcode Alert Banner */}
+          {!currentBarcode && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-sm">
+              <div className="space-y-0.5">
+                <p className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                  <Sparkles size={14} className="text-amber-600" />
+                  No Barcode / QR Assigned Yet
+                </p>
+                <p className="text-[11px] text-amber-700">
+                  Ideal for garments, clothes, or custom items. Click to generate a unique code instantly!
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleGenerateAndAssignBarcode}
+                disabled={generatingBarcode}
+                className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shrink-0 flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+              >
+                <Sparkles size={14} />
+                {generatingBarcode ? 'Generating...' : 'Generate Code'}
+              </button>
+            </div>
+          )}
+
           {/* 1. Format Switcher Toggle */}
           <div>
             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">
@@ -261,12 +314,24 @@ export default function BarcodeModal({ product, isOpen, onClose }: BarcodeModalP
                     alt={format}
                     className={`object-contain mx-auto ${format === 'QR' ? 'max-h-24' : 'max-h-14 max-w-full'}`}
                   />
+                ) : !currentBarcode ? (
+                  <div className="py-2 text-center">
+                    <p className="text-xs font-medium text-gray-400">No code generated</p>
+                    <button
+                      type="button"
+                      onClick={handleGenerateAndAssignBarcode}
+                      disabled={generatingBarcode}
+                      className="mt-1 text-[11px] font-bold text-blue-600 hover:underline flex items-center gap-1 mx-auto cursor-pointer"
+                    >
+                      <Sparkles size={12} /> Generate Now
+                    </button>
+                  </div>
                 ) : (
                   <p className="text-xs text-red-500">Failed to render</p>
                 )}
               </div>
 
-              <p className="text-[10px] font-mono text-gray-400 mt-1 select-all">{product.barcode}</p>
+              <p className="text-[10px] font-mono text-gray-400 mt-1 select-all">{currentBarcode || '—'}</p>
 
               {includePrice && (
                 <p className="text-base font-black text-gray-900 mt-1">
@@ -377,7 +442,8 @@ export default function BarcodeModal({ product, isOpen, onClose }: BarcodeModalP
           <button
             type="button"
             onClick={handleCopyBarcode}
-            className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 hover:bg-gray-100 rounded-xl text-xs font-semibold text-gray-700 transition-colors"
+            disabled={!currentBarcode}
+            className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 hover:bg-gray-100 disabled:opacity-40 rounded-xl text-xs font-semibold text-gray-700 transition-colors cursor-pointer disabled:cursor-not-allowed"
           >
             {copied ? <Check size={14} className="text-green-600" /> : <Copy size={14} />}
             {copied ? 'Copied' : 'Copy Code'}
@@ -387,15 +453,15 @@ export default function BarcodeModal({ product, isOpen, onClose }: BarcodeModalP
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-gray-500 hover:text-gray-700"
+              className="px-4 py-2 text-xs font-semibold text-gray-500 hover:text-gray-700 cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={handlePrint}
-              disabled={loading || !imgData}
-              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-98 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-200 transition-all cursor-pointer"
+              disabled={loading || !imgData || !currentBarcode}
+              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-98 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-200 transition-all cursor-pointer disabled:cursor-not-allowed"
             >
               <Printer size={16} />
               Print {quantity} {quantity === 1 ? 'Sticker' : 'Stickers'}

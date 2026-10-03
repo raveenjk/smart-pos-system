@@ -3,6 +3,7 @@ import { Plus, Search, Edit2, Trash2, AlertTriangle, Barcode, X, RefreshCw, Lock
 import type { Product, Category } from '../types';
 import { useAuthStore } from '../stores/authStore';
 import CategoryModal from '../components/inventory/CategoryModal';
+import BarcodeModal from '../components/inventory/BarcodeModal';
 
 export default function Inventory() {
   const { can } = useAuthStore();
@@ -14,7 +15,7 @@ export default function Inventory() {
   const [showForm, setShowForm] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
-  const [barcodeModal, setBarcodeModal] = useState<{ product: Product; img: string } | null>(null);
+  const [selectedBarcodeProduct, setSelectedBarcodeProduct] = useState<Product | null>(null);
   const [form, setForm] = useState({
     name: '', barcode: '', category_id: 1, price: 0,
     cost_price: 0, stock: 0, low_stock_alert: 10, unit: 'pcs', description: '',
@@ -71,29 +72,8 @@ export default function Inventory() {
     setForm((f) => ({ ...f, barcode: code }));
   };
 
-  const showBarcode = async (product: Product) => {
-    if (!product.barcode) { alert('No barcode set for this product.'); return; }
-    const result = await window.api.generateBarcode(product.barcode);
-    if (result.success && result.data) {
-      setBarcodeModal({ product, img: `data:image/png;base64,${result.data}` });
-    }
-  };
-
-  const printBarcode = () => {
-    if (!barcodeModal) return;
-    const win = window.open('', '_blank');
-    if (win) {
-      win.document.write(`
-        <html><head><title>Barcode - ${barcodeModal.product.name}</title>
-        <style>body{text-align:center;font-family:Arial;padding:20px}img{max-width:300px}</style>
-        </head><body>
-        <p style="font-size:14px;font-weight:bold">${barcodeModal.product.name}</p>
-        <p style="font-size:18px;font-weight:bold">LKR ${barcodeModal.product.price.toFixed(2)}</p>
-        <img src="${barcodeModal.img}" />
-        <script>window.onload=()=>{window.print();window.close()}</script>
-        </body></html>
-      `);
-    }
+  const showBarcode = (product: Product) => {
+    setSelectedBarcodeProduct(product);
   };
 
   const profitMargin = (p: Product) => {
@@ -207,9 +187,9 @@ export default function Inventory() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <button onClick={() => showBarcode(p)} title="View Barcode" className="text-gray-400 hover:text-purple-600 transition-colors"><Barcode size={15} /></button>
-                      <button onClick={() => handleEdit(p)} title="Edit" className="text-gray-400 hover:text-blue-600 transition-colors"><Edit2 size={15} /></button>
-                      <button onClick={() => handleDelete(p.id)} title="Delete" className="text-gray-400 hover:text-red-500 transition-colors"><Trash2 size={15} /></button>
+                      <button onClick={() => showBarcode(p)} title="Barcode & QR Tag Studio (Sticker / Clothing)" className="text-gray-400 hover:text-purple-600 transition-colors cursor-pointer p-1 hover:bg-purple-50 rounded-lg"><Barcode size={16} /></button>
+                      <button onClick={() => handleEdit(p)} title="Edit" className="text-gray-400 hover:text-blue-600 transition-colors cursor-pointer p-1 hover:bg-blue-50 rounded-lg"><Edit2 size={15} /></button>
+                      <button onClick={() => handleDelete(p.id)} title="Delete" className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer p-1 hover:bg-red-50 rounded-lg"><Trash2 size={15} /></button>
                     </div>
                   </td>
                 </tr>
@@ -317,29 +297,13 @@ export default function Inventory() {
         </div>
       )}
 
-      {/* Barcode Modal */}
-      {barcodeModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl w-72 shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="font-bold text-gray-800">Barcode</h2>
-              <button onClick={() => setBarcodeModal(null)} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
-            </div>
-            <div className="p-5 text-center">
-              <p className="font-semibold text-gray-800 mb-1">{barcodeModal.product.name}</p>
-              <p className="text-sm text-blue-600 font-bold mb-3">LKR {barcodeModal.product.price.toFixed(2)}</p>
-              <div className="bg-white border-2 border-gray-100 rounded-xl p-4 inline-block">
-                <img src={barcodeModal.img} alt="barcode" className="max-w-full" />
-              </div>
-              <p className="text-xs text-gray-400 mt-2 font-mono">{barcodeModal.product.barcode}</p>
-            </div>
-            <div className="flex gap-2 p-4 border-t">
-              <button onClick={() => setBarcodeModal(null)} className="flex-1 py-2 border rounded-xl text-sm text-gray-600 hover:bg-gray-50">Close</button>
-              <button onClick={printBarcode} className="flex-1 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700">Print</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Barcode & Clothing QR Price Tag Studio Modal */}
+      <BarcodeModal
+        product={selectedBarcodeProduct}
+        isOpen={Boolean(selectedBarcodeProduct)}
+        onClose={() => setSelectedBarcodeProduct(null)}
+        onProductUpdated={load}
+      />
 
       {/* Category Management Modal */}
       <CategoryModal

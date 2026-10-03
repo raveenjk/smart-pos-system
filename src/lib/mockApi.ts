@@ -220,12 +220,25 @@ export function setupBrowserMockApi() {
     getProductByBarcode: async (barcode: string) => {
       return products.find((p) => p.barcode === barcode && p.is_active) || null;
     },
-    getCategories: async () => categories,
+    getCategories: async () => {
+      return categories.map((c) => ({
+        ...c,
+        product_count: products.filter((p) => p.category_id === c.id && p.is_active).length,
+      }));
+    },
     createCategory: async (data: Partial<Category>) => {
       const newC: Category = { id: Date.now(), name: data.name || '', description: data.description };
       categories = [...categories, newC];
       setStored('categories', categories);
       return newC;
+    },
+    deleteCategory: async (id: number) => {
+      // Reassign to category 1 (General)
+      products = products.map((p) => p.category_id === id ? { ...p, category_id: 1, category_name: 'General' } : p);
+      setStored('products', products);
+      categories = categories.filter((c) => c.id !== id);
+      setStored('categories', categories);
+      return { success: true };
     },
     getLowStockProducts: async () => products.filter((p) => p.stock <= p.low_stock_alert),
 
@@ -353,8 +366,67 @@ export function setupBrowserMockApi() {
     savePDF: async () => ({ success: false, error: 'PDF save available in Desktop App' }),
     getPrinters: async () => [{ name: 'Default Thermal Printer' }],
 
-    // Barcode
-    generateBarcode: async (_text: string) => ({ success: false }),
+    // Barcode & QR Code (Canvas-powered generator for browser preview)
+    generateBarcode: async (text: string, format = 'CODE128') => {
+      try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return { success: false, error: 'Canvas not supported' };
+
+        const isQr = format.toLowerCase() === 'qr';
+        if (isQr) {
+          canvas.width = 180;
+          canvas.height = 180;
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, 180, 180);
+          ctx.fillStyle = '#000000';
+
+          const drawFinder = (x: number, y: number) => {
+            ctx.fillRect(x, y, 42, 42);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(x + 7, y + 7, 28, 28);
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(x + 14, y + 14, 14, 14);
+          };
+          drawFinder(12, 12);
+          drawFinder(126, 12);
+          drawFinder(12, 126);
+
+          for (let r = 0; r < 14; r++) {
+            for (let c = 0; c < 14; c++) {
+              const hash = (text.charCodeAt(c % text.length) * 31 + r * 19 + c * 17) % 3 === 0;
+              if (hash) {
+                ctx.fillRect(65 + (c % 6) * 8, 30 + r * 8, 7, 7);
+                ctx.fillRect(20 + c * 9, 68 + (r % 6) * 8, 7, 7);
+              }
+            }
+          }
+        } else {
+          canvas.width = 240;
+          canvas.height = 80;
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, 240, 80);
+          ctx.fillStyle = '#000000';
+          let x = 14;
+          for (let i = 0; i < 40; i++) {
+            const charCode = text.charCodeAt(i % text.length);
+            const w = (charCode + i) % 3 + 1;
+            ctx.fillRect(x, 10, w, 50);
+            x += w + ((charCode * 3 + i) % 3 + 1);
+            if (x > 224) break;
+          }
+          ctx.font = '11px monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(text, 120, 72);
+        }
+
+        const dataUrl = canvas.toDataURL('image/png');
+        const base64 = dataUrl.split(',')[1];
+        return { success: true, data: base64 };
+      } catch (err) {
+        return { success: false, error: String(err) };
+      }
+    },
     generateUniqueBarcode: async () => `${Date.now()}`.slice(-10),
 
     // Hold Bills
@@ -376,7 +448,7 @@ export function setupBrowserMockApi() {
       return { success: true };
     },
 
-    // License
+    // License & System
     getLicenseStatus: async () => ({
       isActivated: true,
       machineId: 'DEMO-BROWSER-PREVIEW',
@@ -385,5 +457,10 @@ export function setupBrowserMockApi() {
     }),
     getMachineId: async () => 'DEMO-BROWSER-PREVIEW',
     activateLicense: async () => ({ success: true, message: 'Browser demo preview active!' }),
+    getMaintenanceStatus: async () => ({ enabled: false, message: '' }),
+    openDeveloperPortal: async () => {
+      window.open('http://localhost:4800/developer', '_blank');
+      return { success: true };
+    },
   };
 }

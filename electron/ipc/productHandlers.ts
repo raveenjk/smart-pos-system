@@ -48,6 +48,9 @@ export function registerProductHandlers() {
 
   // Update product
   ipcMain.handle('products:update', (_event, id: number, data: any) => {
+    const existing: any = db.prepare('SELECT * FROM products WHERE id = ?').get(id);
+    if (!existing) return null;
+    const merged = { ...existing, ...data, id };
     const stmt = db.prepare(`
       UPDATE products SET
         name = @name,
@@ -63,8 +66,8 @@ export function registerProductHandlers() {
         synced = 0
       WHERE id = @id
     `);
-    stmt.run({ ...data, id });
-    return { id, ...data };
+    stmt.run(merged);
+    return merged;
   });
 
   // Delete product (soft delete)

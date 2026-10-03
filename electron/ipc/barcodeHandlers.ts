@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron';
-import bwipjs from 'bwip-js';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const bwipjs = require('bwip-js');
 
 export function registerBarcodeHandlers() {
   // Generate barcode as base64 PNG
