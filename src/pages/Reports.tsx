@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react';
 import {
   BarChart3, TrendingUp, Package, DollarSign, Download,
-  Calendar, Layers, Percent
+  Calendar, Layers, Percent, Lock
 } from 'lucide-react';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer
 } from 'recharts';
 import { format, subDays, startOfMonth } from 'date-fns';
+import { useAuthStore } from '../stores/authStore';
 
 export default function Reports() {
+  const { can } = useAuthStore();
+  const canViewCost = can('view_cost_price');
   const [salesData, setSalesData] = useState<any[]>([]);
   const [topProducts, setTopProducts] = useState<any[]>([]);
   const [profitData, setProfitData] = useState<any[]>([]);
@@ -168,10 +171,21 @@ export default function Reports() {
             <TrendingUp size={20} />
           </div>
           <div>
-            <p className="text-2xl font-bold text-emerald-600">{formatLKR(totalProfit)}</p>
-            <p className="text-xs font-medium text-gray-400 mt-0.5">
-              Gross Profit <span className="text-emerald-600 font-semibold">({profitMargin}% margin)</span>
-            </p>
+            {canViewCost ? (
+              <>
+                <p className="text-2xl font-bold text-emerald-600">{formatLKR(totalProfit)}</p>
+                <p className="text-xs font-medium text-gray-400 mt-0.5">
+                  Gross Profit <span className="text-emerald-600 font-semibold">({profitMargin}% margin)</span>
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-base font-bold text-gray-400 flex items-center gap-1.5 py-1">
+                  <Lock size={16} /> Admin Only
+                </p>
+                <p className="text-xs font-medium text-gray-400 mt-0.5">Gross Profit Protected</p>
+              </>
+            )}
           </div>
         </div>
 

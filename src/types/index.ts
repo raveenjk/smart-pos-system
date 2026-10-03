@@ -36,10 +36,57 @@ export interface Customer {
   created_at: string;
 }
 
+export type UserRole = 'admin' | 'manager' | 'cashier';
+
+export type PermissionKey =
+  | 'view_dashboard'
+  | 'access_pos'
+  | 'manage_inventory'
+  | 'view_cost_price'
+  | 'manage_customers'
+  | 'manage_employees'
+  | 'view_reports'
+  | 'access_settings'
+  | 'apply_custom_discount'
+  | 'void_bills';
+
+export const ROLE_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
+  admin: [
+    'view_dashboard',
+    'access_pos',
+    'manage_inventory',
+    'view_cost_price',
+    'manage_customers',
+    'manage_employees',
+    'view_reports',
+    'access_settings',
+    'apply_custom_discount',
+    'void_bills',
+  ],
+  manager: [
+    'view_dashboard',
+    'access_pos',
+    'manage_inventory',
+    'manage_customers',
+    'view_reports',
+    'apply_custom_discount',
+    'void_bills',
+  ],
+  cashier: [
+    'access_pos',
+    'manage_customers',
+  ],
+};
+
+export function checkPermission(role: UserRole | undefined, permission: PermissionKey): boolean {
+  if (!role) return false;
+  return ROLE_PERMISSIONS[role]?.includes(permission) ?? false;
+}
+
 export interface Employee {
   id: number;
   name: string;
-  role: 'admin' | 'manager' | 'cashier';
+  role: UserRole;
   phone?: string;
   is_active: boolean;
 }

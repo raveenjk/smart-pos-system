@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Plus, Search, Edit2, Trash2, AlertTriangle, Barcode, X, RefreshCw } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, AlertTriangle, Barcode, X, RefreshCw, Lock } from 'lucide-react';
 import type { Product, Category } from '../types';
+import { useAuthStore } from '../stores/authStore';
 
 export default function Inventory() {
+  const { can } = useAuthStore();
+  const canViewCost = can('view_cost_price');
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState('');
@@ -173,9 +176,17 @@ export default function Inventory() {
                   </td>
                   <td className="px-4 py-3 font-bold text-blue-600">LKR {p.price.toFixed(2)}</td>
                   <td className="px-4 py-3">
-                    <p className="text-gray-500 text-xs">LKR {p.cost_price.toFixed(2)}</p>
-                    {profitMargin(p) !== null && (
-                      <span className="text-xs font-semibold text-green-600">{profitMargin(p)}% margin</span>
+                    {canViewCost ? (
+                      <>
+                        <p className="text-gray-500 text-xs">LKR {p.cost_price.toFixed(2)}</p>
+                        {profitMargin(p) !== null && (
+                          <span className="text-xs font-semibold text-green-600">{profitMargin(p)}% margin</span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-gray-400 text-xs italic flex items-center gap-1">
+                        <Lock size={11} className="text-gray-400" /> Protected
+                      </span>
                     )}
                   </td>
                   <td className="px-4 py-3">
@@ -229,14 +240,16 @@ export default function Inventory() {
                   </div>
                 </div>
 
-                <div>
+                <div className={canViewCost ? "" : "col-span-2"}>
                   <label className="text-xs font-semibold text-gray-500 mb-1.5 block">SELLING PRICE (LKR) *</label>
                   <input type="number" value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: Number(e.target.value) }))} className="w-full border-2 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400" min={0} />
                 </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 mb-1.5 block">COST PRICE (LKR)</label>
-                  <input type="number" value={form.cost_price} onChange={(e) => setForm((f) => ({ ...f, cost_price: Number(e.target.value) }))} className="w-full border-2 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400" min={0} />
-                </div>
+                {canViewCost && (
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 mb-1.5 block">COST PRICE (LKR)</label>
+                    <input type="number" value={form.cost_price} onChange={(e) => setForm((f) => ({ ...f, cost_price: Number(e.target.value) }))} className="w-full border-2 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400" min={0} />
+                  </div>
+                )}
 
                 <div>
                   <label className="text-xs font-semibold text-gray-500 mb-1.5 block">STOCK QUANTITY</label>

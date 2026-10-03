@@ -1,12 +1,14 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   Search, X, Plus, Minus, Trash2, CreditCard, Banknote,
-  QrCode, User, PauseCircle, PlayCircle, Grid3X3
+  QrCode, User, PauseCircle, PlayCircle, Grid3X3, Lock
 } from 'lucide-react';
 import { useCartStore } from '../stores/cartStore';
+import { useAuthStore } from '../stores/authStore';
 import type { Product, Customer, Category } from '../types';
 import PaymentModal from '../components/pos/PaymentModal';
 import HoldBillsPanel from '../components/pos/HoldBillsPanel';
+import ManagerApprovalModal from '../components/shared/ManagerApprovalModal';
 
 export default function POS() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -19,6 +21,8 @@ export default function POS() {
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerResults, setCustomerResults] = useState<Customer[]>([]);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const { can, clearOverrides } = useAuthStore();
+  const [showDiscountApproval, setShowDiscountApproval] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   // Barcode buffer for USB scanner (types fast)
   const barcodeBuffer = useRef('');
@@ -303,14 +307,32 @@ export default function POS() {
               <span>{formatLKR(subtotal())}</span>
             </div>
             <div className="flex items-center justify-between text-xs text-gray-500">
-              <span>Discount (LKR)</span>
-              <input
-                type="number"
-                value={discount}
-                onChange={(e) => setDiscount(Math.max(0, Number(e.target.value)))}
-                className="w-20 text-right border rounded-lg px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
-                min={0}
-              />
+              <span className="flex items-center gap-1">
+                Discount (LKR)
+                {!can('apply_custom_discount') && (
+                  <span className="text-amber-500" title="Manager approval required">
+                    <Lock size={12} />
+                  </span>
+                )}
+              </span>
+              {can('apply_custom_discount') ? (
+                <input
+                  type="number"
+                  value={discount}
+                  onChange={(e) => setDiscount(Math.max(0, Number(e.target.value)))}
+                  className="w-20 text-right border rounded-lg px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  min={0}
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowDiscountApproval(true)}
+                  className="px-2 py-0.5 border border-dashed border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
+                >
+                  <Lock size={11} />
+                  {discount > 0 ? `LKR ${discount}` : 'Authorize'}
+                </button>
+              )}
             </div>
             {taxAmount() > 0 && (
               <div className="flex justify-between text-xs text-gray-500">
@@ -391,7 +413,7 @@ export default function POS() {
           subtotal={subtotal()}
           tax={taxAmount()}
           onClose={() => setShowPayment(false)}
-          onSuccess={() => { setShowPayment(false); clearCart(); }}
+          onSuccess={() => { setShowPayment(false); clearCart(); clearOverrides(); }}
         />
       )}
 
@@ -402,6 +424,15 @@ export default function POS() {
           onRecall={handleRecall}
         />
       )}
+
+      {/* Discount Manager Approval Modal */}
+      <ManagerApprovalModal
+        isOpen={showDiscountApproval}
+        permission="apply_custom_discount"
+        actionTitle="Custom Discount"
+        onClose={() => setShowDiscountApproval(false)}
+        onApproved={() => setShowDiscountApproval(false)}
+      />
     </div>
   );
 }
