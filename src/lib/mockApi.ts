@@ -125,10 +125,10 @@ const INITIAL_CUSTOMERS: Customer[] = [
   },
 ];
 
-const INITIAL_EMPLOYEES: Employee[] = [
-  { id: 1, name: 'Admin', role: 'admin', phone: '0770000000', is_active: true },
-  { id: 2, name: 'Saman (Cashier)', role: 'cashier', phone: '0761112233', is_active: true },
-  { id: 3, name: 'Nalaka (Manager)', role: 'manager', phone: '0783334455', is_active: true },
+const INITIAL_EMPLOYEES: (Employee & { pin?: string })[] = [
+  { id: 1, name: 'Admin', role: 'admin', phone: '0770000000', pin: '1234', is_active: true },
+  { id: 2, name: 'Saman (Cashier)', role: 'cashier', phone: '0761112233', pin: '1234', is_active: true },
+  { id: 3, name: 'Nalaka (Manager)', role: 'manager', phone: '0783334455', pin: '1234', is_active: true },
 ];
 
 const INITIAL_BATCHES: any[] = [
@@ -198,7 +198,12 @@ export function setupBrowserMockApi() {
   let products = getStored<Product[]>('products', INITIAL_PRODUCTS);
   let categories = getStored<Category[]>('categories', INITIAL_CATEGORIES);
   let customers = getStored<Customer[]>('customers', INITIAL_CUSTOMERS);
-  let employees = getStored<Employee[]>('employees', INITIAL_EMPLOYEES);
+  let rawEmployees = getStored<(Employee & { pin?: string })[]>('employees', INITIAL_EMPLOYEES);
+  let employees: (Employee & { pin?: string })[] = rawEmployees.map((e) => ({
+    ...e,
+    pin: e.pin ? String(e.pin).trim() : '1234',
+  }));
+  setStored('employees', employees);
   let batches = getStored<any[]>('batches', INITIAL_BATCHES);
   let sales: any[] = getStored<any[]>('sales', []);
   let heldBills: any[] = getStored<any[]>('held_bills', []);
@@ -388,13 +393,29 @@ export function setupBrowserMockApi() {
     // Employees
     getEmployees: async () => employees,
     createEmployee: async (data: any) => {
-      const newE: Employee = { id: Date.now(), name: data.name, role: data.role, phone: data.phone, is_active: true };
+      const newE: Employee & { pin?: string } = {
+        id: Date.now(),
+        name: data.name,
+        role: data.role,
+        phone: data.phone,
+        pin: String(data.pin || '1234').trim(),
+        is_active: true,
+      };
       employees = [...employees, newE];
       setStored('employees', employees);
       return newE;
     },
     updateEmployee: async (id: number, data: any) => {
-      employees = employees.map((e) => (e.id === id ? { ...e, ...data } : e));
+      employees = employees.map((e) => {
+        if (e.id === id) {
+          const updated = { ...e, ...data };
+          if (data.pin && String(data.pin).trim()) {
+            updated.pin = String(data.pin).trim();
+          }
+          return updated;
+        }
+        return e;
+      });
       setStored('employees', employees);
       return employees.find((e) => e.id === id) as Employee;
     },
@@ -403,9 +424,13 @@ export function setupBrowserMockApi() {
       setStored('employees', employees);
       return { success: true };
     },
-    verifyEmployeePin: async (id: number, _pin: string) => {
+    verifyEmployeePin: async (id: number, pin: string) => {
       const emp = employees.find((e) => e.id === id);
-      return { success: true, employee: emp || null };
+      if (!emp) return { success: false, employee: null };
+      const expected = String((emp as any).pin || '1234').trim();
+      const input = String(pin || '').trim();
+      const isMatch = input === expected;
+      return { success: isMatch, employee: isMatch ? emp : null };
     },
 
     // Reports

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Lock, KeyRound, Check, AlertCircle } from 'lucide-react';
+import { X, Lock, KeyRound, Check, AlertCircle, LogOut } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import type { Employee } from '../../types';
 
@@ -14,7 +14,7 @@ export default function CashierSwitchModal({ isOpen, onClose }: CashierSwitchMod
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { setCurrentEmployee } = useAuthStore();
+  const { setCurrentEmployee, logout } = useAuthStore();
 
   useEffect(() => {
     if (isOpen) {
@@ -190,10 +190,23 @@ export default function CashierSwitchModal({ isOpen, onClose }: CashierSwitchMod
             type="button"
             onClick={() => handleSubmit()}
             disabled={loading || pin.length === 0}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-700 active:scale-98 disabled:opacity-50 text-white rounded-2xl font-bold text-sm shadow-md shadow-blue-200 transition-all flex items-center justify-center gap-2"
+            className="w-full py-3 bg-blue-600 hover:bg-blue-700 active:scale-98 disabled:opacity-50 text-white rounded-2xl font-bold text-sm shadow-md shadow-blue-200 transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
             <Lock size={16} />
             {loading ? 'Verifying...' : 'Unlock / Switch'}
+          </button>
+
+          {/* Lock Terminal & Log Out Button */}
+          <button
+            type="button"
+            onClick={() => {
+              logout();
+              onClose();
+            }}
+            className="w-full mt-2.5 py-2.5 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <LogOut size={14} />
+            Lock Terminal & Log Out
           </button>
         </div>
       </div>

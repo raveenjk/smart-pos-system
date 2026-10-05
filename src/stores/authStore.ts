@@ -15,13 +15,7 @@ interface AuthStore {
 }
 
 export const useAuthStore = create<AuthStore>((set, get) => ({
-  currentEmployee: {
-    id: 1,
-    name: 'Admin',
-    role: 'admin',
-    phone: '',
-    is_active: true,
-  },
+  currentEmployee: null,
   temporaryOverrides: [],
 
   setCurrentEmployee: (employee) => set({ currentEmployee: employee, temporaryOverrides: [] }),

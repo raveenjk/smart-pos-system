@@ -40,7 +40,7 @@ const navItems: NavItem[] = [
 export default function Sidebar() {
   const [isSwitchOpen, setIsSwitchOpen] = useState(false);
   const [overrideItem, setOverrideItem] = useState<NavItem | null>(null);
-  const { currentEmployee, can } = useAuthStore();
+  const { currentEmployee, can, logout } = useAuthStore();
   const { settings, loadSettings } = useSettingsStore();
   const navigate = useNavigate();
 
@@ -129,39 +129,60 @@ export default function Sidebar() {
           </nav>
         </div>
 
-        {/* Bottom: Active User / Cashier Switch */}
+        {/* Bottom: Active User / Cashier Switch & Lock */}
         <div className="px-2 pt-3 border-t border-gray-800">
-          <button
-            onClick={() => setIsSwitchOpen(true)}
-            className="w-full flex items-center gap-2.5 p-2 rounded-xl bg-gray-800/60 hover:bg-gray-800 transition-colors text-left group"
-            title="Click to Switch Cashier / Lock"
-          >
-            <div
-              className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
-                currentEmployee?.role === 'admin'
-                  ? 'bg-red-500/20 text-red-400 border-red-500/30'
-                  : currentEmployee?.role === 'manager'
-                  ? 'bg-purple-500/20 text-purple-400 border-purple-500/30'
-                  : 'bg-blue-500/20 text-blue-400 border-blue-500/30'
-              }`}
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setIsSwitchOpen(true)}
+              className="flex-1 flex items-center gap-2 p-1.5 rounded-xl bg-gray-800/60 hover:bg-gray-800 transition-colors text-left group min-w-0 cursor-pointer"
+              title="Click to Switch Cashier"
             >
-              {currentEmployee?.role === 'admin' ? (
-                <ShieldCheck size={16} />
-              ) : currentEmployee?.role === 'manager' ? (
-                <ShieldAlert size={16} />
-              ) : (
-                <User size={16} />
-              )}
-            </div>
-            <div className="hidden lg:block flex-1 min-w-0">
-              <p className="text-xs font-semibold text-gray-200 truncate group-hover:text-white">
-                {currentEmployee?.name || 'Cashier'}
-              </p>
-              <p className="text-[10px] text-gray-400 capitalize">
-                {currentEmployee?.role || 'Staff'} • Switch
-              </p>
-            </div>
-            <LogOut size={14} className="hidden lg:block text-gray-500 group-hover:text-gray-300" />
+              <div
+                className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
+                  currentEmployee?.role === 'admin'
+                    ? 'bg-red-500/20 text-red-400 border-red-500/30'
+                    : currentEmployee?.role === 'manager'
+                    ? 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+                    : 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+                }`}
+              >
+                {currentEmployee?.role === 'admin' ? (
+                  <ShieldCheck size={16} />
+                ) : currentEmployee?.role === 'manager' ? (
+                  <ShieldAlert size={16} />
+                ) : (
+                  <User size={16} />
+                )}
+              </div>
+              <div className="hidden lg:block flex-1 min-w-0">
+                <p className="text-xs font-semibold text-gray-200 truncate group-hover:text-white">
+                  {currentEmployee?.name || 'Cashier'}
+                </p>
+                <p className="text-[10px] text-gray-400 capitalize truncate">
+                  {currentEmployee?.role || 'Staff'} • Switch
+                </p>
+              </div>
+            </button>
+
+            {/* Quick Lock / Log Out Button */}
+            <button
+              type="button"
+              onClick={logout}
+              className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/20 transition-all shrink-0 cursor-pointer"
+              title="Lock POS Terminal & Require PIN"
+            >
+              <LogOut size={16} />
+            </button>
+          </div>
+
+          {/* Full-width Lock button in expanded sidebar */}
+          <button
+            type="button"
+            onClick={logout}
+            className="w-full mt-2 hidden lg:flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg bg-slate-800/50 hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 border border-slate-700/50 hover:border-rose-500/30 text-[11px] font-medium transition-all cursor-pointer"
+          >
+            <Lock size={12} />
+            <span>Lock POS Terminal</span>
           </button>
 
           <div className="px-2 mt-2 hidden lg:flex items-center justify-between text-[11px] text-gray-500">

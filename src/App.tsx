@@ -20,6 +20,8 @@ import Customers from './pages/Customers';
 import Employees from './pages/Employees';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
+import LoginLockScreen from './components/auth/LoginLockScreen';
+import { useAuthStore } from './stores/authStore';
 import type { LicenseStatus } from './types';
 
 export default function App() {
@@ -35,6 +37,8 @@ export default function App() {
   const [activationSuccess, setActivationSuccess] = useState('');
   const [copiedId, setCopiedId] = useState(false);
   const [showKeyModal, setShowKeyModal] = useState(false);
+
+  const { currentEmployee } = useAuthStore();
 
   useEffect(() => {
     // 1. Maintenance Status
@@ -404,70 +408,74 @@ export default function App() {
         )}
 
         {/* ========================================================
-            5. MAIN APPLICATION ROUTES
+            5. STAFF AUTHENTICATION & PIN LOCKOUT SCREEN
            ======================================================== */}
-        <div className="flex-1 flex flex-col">
-          <Routes>
-            <Route element={<Layout />}>
-              <Route
-                path="/"
-                element={
-                  <ProtectedRoute permission="view_dashboard" title="Dashboard">
-                    <Dashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/pos"
-                element={
-                  <ProtectedRoute permission="access_pos" title="POS Terminal">
-                    <POS />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/inventory"
-                element={
-                  <ProtectedRoute permission="manage_inventory" title="Inventory & Stock">
-                    <Inventory />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/customers"
-                element={
-                  <ProtectedRoute permission="manage_customers" title="Customers">
-                    <Customers />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/employees"
-                element={
-                  <ProtectedRoute permission="manage_employees" title="Employees & Roles">
-                    <Employees />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/reports"
-                element={
-                  <ProtectedRoute permission="view_reports" title="Sales Reports & Analytics">
-                    <Reports />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/settings"
-                element={
-                  <ProtectedRoute permission="access_settings" title="System Settings">
-                    <Settings />
-                  </ProtectedRoute>
-                }
-              />
-            </Route>
-          </Routes>
-        </div>
+        {!currentEmployee && !isLocked && !maintenance.active ? (
+          <LoginLockScreen />
+        ) : (
+          <div className="flex-1 flex flex-col">
+            <Routes>
+              <Route element={<Layout />}>
+                <Route
+                  path="/"
+                  element={
+                    <ProtectedRoute permission="view_dashboard" title="Dashboard">
+                      <Dashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/pos"
+                  element={
+                    <ProtectedRoute permission="access_pos" title="POS Terminal">
+                      <POS />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/inventory"
+                  element={
+                    <ProtectedRoute permission="manage_inventory" title="Inventory & Stock">
+                      <Inventory />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/customers"
+                  element={
+                    <ProtectedRoute permission="manage_customers" title="Customers">
+                      <Customers />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/employees"
+                  element={
+                    <ProtectedRoute permission="manage_employees" title="Employees & Roles">
+                      <Employees />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/reports"
+                  element={
+                    <ProtectedRoute permission="view_reports" title="Sales Reports & Analytics">
+                      <Reports />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/settings"
+                  element={
+                    <ProtectedRoute permission="access_settings" title="System Settings">
+                      <Settings />
+                    </ProtectedRoute>
+                  }
+                />
+              </Route>
+            </Routes>
+          </div>
+        )}
       </div>
     </HashRouter>
   );
