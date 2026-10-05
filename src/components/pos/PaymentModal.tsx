@@ -100,6 +100,8 @@ export default function PaymentModal({
       payment_method: paymentMethod,
       footer: settings.receipt_footer || 'Thank you for shopping!',
       date: format(new Date(), 'dd/MM/yyyy HH:mm'),
+      branding_enabled: settings.receipt_branding_enabled !== 'false',
+      branding_text: settings.receipt_branding_text || 'System by JK Soft - 070 522 4007',
     };
   };
 
@@ -148,7 +150,10 @@ export default function PaymentModal({
       `*TOTAL:* LKR ${total.toFixed(2)}\n` +
       `Paid (${paymentMethod.toUpperCase()}): LKR ${amountPaid.toFixed(2)}\n` +
       (change > 0 ? `Change: LKR ${change.toFixed(2)}\n` : '') +
-      `\n_${settings.receipt_footer || 'Thank you for shopping!'}_`;
+      `\n_${settings.receipt_footer || 'Thank you for shopping!'}_` +
+      (settings.receipt_branding_enabled !== 'false'
+        ? `\n\n_${settings.receipt_branding_text || 'System by JK Soft - 070 522 4007'}_`
+        : '');
 
     const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
     window.open(url, '_blank');

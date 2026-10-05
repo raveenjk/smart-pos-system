@@ -137,7 +137,6 @@ function buildReceiptHTML(data: ReceiptData): string {
 
   <div class="double-divider"></div>
   <div class="footer">${data.footer || 'Thank you for shopping!'}</div>
-  <div class="footer" style="margin-top:4px; font-size:10px;">${data.invoice_number}</div>
   ${brandingEnabled ? `<div class="footer" style="margin-top:8px; font-size:8.5px; color:#444; letter-spacing:0.3px; font-weight:bold;">${brandingText}</div>` : ''}
 </body>
 </html>`;

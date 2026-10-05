@@ -943,6 +943,18 @@ function renderDeveloperPortalHTML(port: number): string {
       document.getElementById('maintenanceCheckbox').checked = Boolean(data.maintenance?.active);
       document.getElementById('maintenanceNoticeInput').value = data.maintenance?.message || '';
 
+      // Receipt Vendor Watermark & Branding
+      const branding = data.branding || {};
+      const brandingChk = document.getElementById('receiptBrandingCheckbox');
+      const brandingInput = document.getElementById('receiptBrandingTextInput');
+      const brandingPill = document.getElementById('brandingPill');
+      if (brandingChk) brandingChk.checked = branding.enabled !== false;
+      if (brandingInput) brandingInput.value = branding.text || 'System by JK Soft - 070 522 4007';
+      if (brandingPill) {
+        brandingPill.className = branding.enabled !== false ? 'pill pill-green' : 'pill pill-rose';
+        brandingPill.textContent = branding.enabled !== false ? 'Active on Bills' : 'Hidden on Bills';
+      }
+
       // Security Tab
       document.getElementById('secNewEmail').value = data.devEmail || '';
     }
@@ -1131,6 +1143,21 @@ function renderDeveloperPortalHTML(port: number): string {
         showToast('✓ Lockout Notice Updated');
       } catch (err) {
         showToast('Failed to update notice', true);
+      }
+    }
+
+    async function handleSaveBranding() {
+      const enabled = document.getElementById('receiptBrandingCheckbox').checked;
+      const text = document.getElementById('receiptBrandingTextInput').value.trim() || 'System by JK Soft - 070 522 4007';
+      try {
+        const res = await apiFetch('/api/settings/branding', {
+          method: 'POST',
+          body: JSON.stringify({ enabled, text }),
+        });
+        showToast(res.message);
+        checkAuthAndLoad();
+      } catch (err) {
+        showToast('Failed to save receipt branding', true);
       }
     }
 

@@ -469,10 +469,11 @@ export default function Settings() {
               {/* Footer message */}
               <div className="text-center space-y-1 text-[10px] text-gray-700">
                 <p>{formData.receipt_footer || 'Thank you for shopping with us! Please come again.'}</p>
-                <p className="text-[8px] text-gray-400 font-mono tracking-widest pt-1">
-                  ||| | || ||||| || |||| |
-                </p>
-                <p className="text-[8px] text-gray-400">Powered by POS System</p>
+                {formData.receipt_branding_enabled !== 'false' && (
+                  <p className="text-[8px] text-gray-500 font-semibold tracking-wide pt-1">
+                    {formData.receipt_branding_text || 'System by JK Soft - 070 522 4007'}
+                  </p>
+                )}
               </div>
             </div>
           </div>

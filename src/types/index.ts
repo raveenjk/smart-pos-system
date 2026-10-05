@@ -179,6 +179,8 @@ export interface AppSettings {
   currency: string;
   tax_rate: string;
   receipt_footer: string;
+  receipt_branding_enabled?: string;
+  receipt_branding_text?: string;
   auto_print_receipt?: string;
   silent_print?: string;
   low_stock_alert: string;

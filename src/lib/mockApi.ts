@@ -213,6 +213,8 @@ export function setupBrowserMockApi() {
     currency: 'LKR',
     tax_rate: '0',
     receipt_footer: 'Thank you for shopping with us! Please come again.',
+    receipt_branding_enabled: 'true',
+    receipt_branding_text: 'System by JK Soft - 070 522 4007',
     low_stock_alert: '10',
     supabase_url: '',
     supabase_key: '',
