@@ -251,14 +251,36 @@ declare global {
       holdGetAll: () => Promise<any[]>;
       holdRecall: (id: number) => Promise<{ cart: any; customer: any; label: string } | null>;
       holdDelete: (id: number) => Promise<{ success: boolean }>;
-      // License
-      getLicenseStatus: () => Promise<{ isActivated: boolean; machineId: string; licenseKey: string; tier: string }>;
+      // License & Trial
+      getLicenseStatus: () => Promise<LicenseStatus>;
       getMachineId: () => Promise<string>;
-      activateLicense: (key: string) => Promise<{ success: boolean; message: string }>;
+      activateLicense: (key: string) => Promise<{ success: boolean; message: string; status?: LicenseStatus }>;
+      startTrial: (days: number) => Promise<{ success: boolean; message: string; status?: LicenseStatus }>;
+      extendTrial: (days: number) => Promise<{ success: boolean; message: string; status?: LicenseStatus }>;
+      endTrial: () => Promise<{ success: boolean; message: string; status?: LicenseStatus }>;
+      onLicenseUpdate: (callback: (status: LicenseStatus) => void) => void;
       // Maintenance & Developer Portal
       getMaintenanceStatus: () => Promise<{ active: boolean; message: string }>;
       openDeveloperPortal: () => Promise<{ success: boolean }>;
       onMaintenanceUpdate: (callback: (status: { active: boolean; message: string }) => void) => void;
     };
   }
+}
+
+export type LicenseStatusCode = 'ACTIVE' | 'TRIAL_ACTIVE' | 'TRIAL_EXPIRED' | 'SETUP_REQUIRED' | 'TAMPERED';
+
+export interface LicenseStatus {
+  status: LicenseStatusCode;
+  isActivated: boolean;
+  isTrial: boolean;
+  isExpired: boolean;
+  tier: string;
+  machineId: string;
+  licenseKey: string;
+  daysLeft: number;
+  trialStart: string | null;
+  trialEnd: string | null;
+  whatsappNumber: string;
+  hotline: string;
+  message: string;
 }

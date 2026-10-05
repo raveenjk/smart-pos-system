@@ -177,7 +177,9 @@ export function initDatabase(): void {
       ('license_activated', 'false'),
       ('dev_email', 'developer@gmail.com'),
       ('maintenance_mode', 'false'),
-      ('maintenance_message', 'System maintenance in progress. Please contact your software vendor.');
+      ('maintenance_message', 'System maintenance in progress. Please contact your software vendor.'),
+      ('receipt_branding_enabled', 'true'),
+      ('receipt_branding_text', 'System by JK Soft - 070 522 4007');
 
     -- Default Category
     INSERT OR IGNORE INTO categories (id, name) VALUES (1, 'General');

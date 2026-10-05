@@ -181,7 +181,7 @@ export default function Inventory() {
                 setFilterMode((curr) => (curr === s.id ? 'all' : (s.id as any)));
               }
             }}
-            className={`${s.color} ${filterMode === s.id && s.id !== 'categories' ? s.activeRing : ''} rounded-xl px-4 py-2.5 text-center transition-all cursor-pointer text-left shadow-2xs`}
+            className={`${s.color} ${(s.id as string) !== 'categories' && filterMode === s.id ? s.activeRing : ''} rounded-xl px-4 py-2.5 text-center transition-all cursor-pointer text-left shadow-2xs`}
           >
             <p className="text-xl font-black">{s.count}</p>
             <p className="text-xs font-semibold opacity-80">{s.label}</p>

@@ -1,5 +1,6 @@
 import { BrowserWindow, ipcMain } from 'electron';
 import { join } from 'path';
+import { getDb } from '../database/schema';
 
 interface ReceiptData {
   invoice_number: string;
@@ -27,9 +28,30 @@ interface ReceiptData {
   payment_method: string;
   footer: string;
   date: string;
+  branding_enabled?: boolean;
+  branding_text?: string;
 }
 
 function buildReceiptHTML(data: ReceiptData): string {
+  let brandingEnabled = data.branding_enabled;
+  let brandingText = data.branding_text;
+  if (brandingEnabled === undefined || !brandingText) {
+    try {
+      const db = getDb();
+      if (brandingEnabled === undefined) {
+        const row = db.prepare("SELECT value FROM settings WHERE key = 'receipt_branding_enabled'").get() as any;
+        brandingEnabled = row ? row.value !== 'false' : true;
+      }
+      if (!brandingText) {
+        const row = db.prepare("SELECT value FROM settings WHERE key = 'receipt_branding_text'").get() as any;
+        brandingText = row?.value || 'System by JK Soft - 070 522 4007';
+      }
+    } catch {
+      brandingEnabled = brandingEnabled ?? true;
+      brandingText = brandingText || 'System by JK Soft - 070 522 4007';
+    }
+  }
+
   const itemsHTML = data.items
     .map(
       (item) => `
@@ -116,6 +138,7 @@ function buildReceiptHTML(data: ReceiptData): string {
   <div class="double-divider"></div>
   <div class="footer">${data.footer || 'Thank you for shopping!'}</div>
   <div class="footer" style="margin-top:4px; font-size:10px;">${data.invoice_number}</div>
+  ${brandingEnabled ? `<div class="footer" style="margin-top:8px; font-size:8.5px; color:#444; letter-spacing:0.3px; font-weight:bold;">${brandingText}</div>` : ''}
 </body>
 </html>`;
 }

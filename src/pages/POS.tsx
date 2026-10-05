@@ -26,7 +26,7 @@ export default function POS() {
   const searchRef = useRef<HTMLInputElement>(null);
   // Barcode buffer for USB scanner (types fast)
   const barcodeBuffer = useRef('');
-  const barcodeTimer = useRef<NodeJS.Timeout>();
+  const barcodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
     items, customer, discount, paymentMethod,
@@ -84,7 +84,7 @@ export default function POS() {
         barcodeBuffer.current = '';
       } else if (e.key.length === 1) {
         barcodeBuffer.current += e.key;
-        clearTimeout(barcodeTimer.current);
+        if (barcodeTimer.current) clearTimeout(barcodeTimer.current);
         barcodeTimer.current = setTimeout(() => { barcodeBuffer.current = ''; }, 100);
       }
     };

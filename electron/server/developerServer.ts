@@ -237,6 +237,10 @@ export function startDeveloperServer(preferredPort: number = 4800): Promise<numb
             port: currentPort,
           },
           devEmail: getStoredSetting('dev_email', 'developer@gmail.com'),
+          branding: {
+            enabled: getStoredSetting('receipt_branding_enabled', 'true') !== 'false',
+            text: getStoredSetting('receipt_branding_text', 'System by JK Soft - 070 522 4007'),
+          },
         });
         return;
       }
@@ -257,6 +261,31 @@ export function startDeveloperServer(preferredPort: number = 4800): Promise<numb
         return;
       }
 
+      // 5.5 POST /api/license/trial/start
+      if (pathname === '/api/license/trial/start' && req.method === 'POST') {
+        const body = await parseBody(req);
+        const days = parseInt(body.days, 10) || 7;
+        const result = startTrial(days);
+        sendJson(res, 200, result);
+        return;
+      }
+
+      // 5.6 POST /api/license/trial/extend
+      if (pathname === '/api/license/trial/extend' && req.method === 'POST') {
+        const body = await parseBody(req);
+        const days = parseInt(body.days, 10) || 3;
+        const result = extendTrial(days);
+        sendJson(res, 200, result);
+        return;
+      }
+
+      // 5.7 POST /api/license/trial/end
+      if (pathname === '/api/license/trial/end' && req.method === 'POST') {
+        const result = endTrial();
+        sendJson(res, 200, result);
+        return;
+      }
+
       // 6. POST /api/license/activate (Feature 2: Manual Key Input)
       if (pathname === '/api/license/activate' && req.method === 'POST') {
         const body = await parseBody(req);
@@ -268,9 +297,8 @@ export function startDeveloperServer(preferredPort: number = 4800): Promise<numb
 
       // 6. POST /api/license/deactivate
       if (pathname === '/api/license/deactivate' && req.method === 'POST') {
-        setStoredSetting('license_key', '');
-        setStoredSetting('license_activated', 'false');
-        sendJson(res, 200, { success: true, message: 'License deactivated successfully' });
+        const result = deactivateLicense();
+        sendJson(res, 200, result);
         return;
       }
 
@@ -323,6 +351,24 @@ export function startDeveloperServer(preferredPort: number = 4800): Promise<numb
         });
 
         sendJson(res, 200, { success: true, active, message });
+        return;
+      }
+
+      // 9.5 POST /api/settings/branding
+      if (pathname === '/api/settings/branding' && req.method === 'POST') {
+        const body = await parseBody(req);
+        const enabled = body.enabled === true || body.enabled === 'true';
+        const text = String(body.text || 'System by JK Soft - 070 522 4007').trim();
+
+        setStoredSetting('receipt_branding_enabled', enabled ? 'true' : 'false');
+        setStoredSetting('receipt_branding_text', text);
+
+        sendJson(res, 200, {
+          success: true,
+          message: 'Receipt branding watermark updated successfully!',
+          enabled,
+          text,
+        });
         return;
       }
 
@@ -588,17 +634,55 @@ function renderDeveloperPortalHTML(port: number): string {
           <p style="font-size:11px; color:#6b7280; margin-top:6px;">Derived from physical NIC MAC address and CPU model. Immune to Windows reinstallation.</p>
         </div>
 
-        <!-- Feature 1: 1-Click Instant Activate (On-site Install) -->
+        <!-- Feature 1: Test Run & Free Trial Provisioning (Auto-Locking) -->
+        <div style="background:linear-gradient(135deg, rgba(245,158,11,0.12), rgba(249,115,22,0.08)); border:1px solid rgba(245,158,11,0.35); border-radius:18px; padding:22px; margin-bottom:24px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px; margin-bottom:14px;">
+            <div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:20px;">⏳</span>
+                <h4 style="font-size:15px; font-weight:800; color:#fbbf24;">Feature 1: Test Run & Free Trial Provisioning</h4>
+                <span id="trialStatusPill" class="pill pill-amber" style="font-size:10px;">Not Started</span>
+              </div>
+              <p style="font-size:12px; color:var(--text-muted); margin-top:6px; line-height:1.4;">
+                Start an evaluation trial for this client shop. When the trial expires, the POS locks out automatically until a full license is activated.
+              </p>
+            </div>
+            <div id="trialInfoBox" style="text-align:right; font-size:12px; color:#e5e7eb; font-family:monospace;">
+              <!-- Dynamic status -->
+            </div>
+          </div>
+
+          <!-- Trial Action Controls -->
+          <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; padding-top:14px; border-top:1px solid rgba(245,158,11,0.2);">
+            <span style="font-size:12px; font-weight:700; color:#d1d5db;">Start Trial:</span>
+            <button class="btn btn-secondary" style="padding:7px 14px; font-size:12px;" onclick="handleStartTrial(7)">🚀 7 Days</button>
+            <button class="btn btn-secondary" style="padding:7px 14px; font-size:12px;" onclick="handleStartTrial(14)">🚀 14 Days</button>
+            <button class="btn btn-secondary" style="padding:7px 14px; font-size:12px;" onclick="handleStartTrial(30)">🚀 30 Days</button>
+            
+            <div style="display:flex; align-items:center; gap:6px; margin-left:4px;">
+              <input type="number" id="customTrialDaysInput" class="input-field" placeholder="Days" style="width:70px; padding:6px 10px; font-size:12px; height:34px;" min="1" max="180">
+              <button class="btn btn-secondary" style="padding:7px 12px; font-size:12px;" onclick="handleStartCustomTrial()">Start Custom</button>
+            </div>
+
+            <div style="margin-left:auto; display:flex; gap:8px;">
+              <button class="btn btn-secondary" style="padding:7px 14px; font-size:12px; border-color:#f59e0b; color:#fbbf24;" onclick="handleExtendTrial(3)">➕ Extend +3 Days</button>
+              <button class="btn btn-secondary" style="padding:7px 14px; font-size:12px; border-color:#f59e0b; color:#fbbf24;" onclick="handleExtendTrial(7)">➕ Extend +7 Days</button>
+              <button class="btn btn-rose" style="padding:7px 12px; font-size:12px;" onclick="handleEndTrial()">🔒 Force Lock (End Trial)</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Feature 2: 1-Click Instant Activate (On-site Install / Full Payment) -->
         <div style="background:linear-gradient(135deg, rgba(16,185,129,0.12), rgba(6,182,212,0.08)); border:1px solid rgba(16,185,129,0.35); border-radius:18px; padding:22px; margin-bottom:24px;">
           <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px;">
             <div style="max-width:520px;">
               <div style="display:flex; align-items:center; gap:8px;">
                 <span style="font-size:20px;">⚡</span>
-                <h4 style="font-size:15px; font-weight:800; color:#34d399;">Feature 1: 1-Click Instant Activate</h4>
-                <span class="pill pill-green" style="font-size:10px;">Developer On-site</span>
+                <h4 style="font-size:15px; font-weight:800; color:#34d399;">Feature 2: Instant Lifetime Activation (Full Payment)</h4>
+                <span class="pill pill-green" style="font-size:10px;">Developer 1-Click</span>
               </div>
               <p style="font-size:12px; color:var(--text-muted); margin-top:6px; line-height:1.4;">
-                Directly computes the cryptographic HMAC signature and activates this client PC in 1 second. No external tool or manual key typing needed!
+                Client paid in full? Computes cryptographic HMAC signature and instantly activates lifetime license. Never locks out.
               </p>
             </div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">
@@ -612,11 +696,11 @@ function renderDeveloperPortalHTML(port: number): string {
           </div>
         </div>
 
-        <!-- Feature 2: Manual Key Input (Remote / WhatsApp) -->
+        <!-- Feature 3: Manual Key Input (Remote / WhatsApp) -->
         <div style="background:#0c1220; border:1px solid var(--border); border-radius:18px; padding:22px; margin-bottom:24px;">
           <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
             <span style="font-size:18px;">🔑</span>
-            <h4 style="font-size:15px; font-weight:800; color:#f3f4f6;">Feature 2: Manual Key Input</h4>
+            <h4 style="font-size:15px; font-weight:800; color:#f3f4f6;">Feature 3: Manual Key Input</h4>
             <span class="pill pill-amber" style="font-size:10px;">Remote / WhatsApp Key</span>
           </div>
           <p style="font-size:12px; color:var(--text-muted); margin-bottom:16px;">
@@ -692,6 +776,38 @@ function renderDeveloperPortalHTML(port: number): string {
           <input type="text" id="maintenanceNoticeInput" class="input-field" placeholder="System maintenance in progress. Please contact your vendor.">
         </div>
         <button class="btn btn-secondary" onclick="updateMaintenanceNotice()">Update Notice</button>
+      </div>
+
+      <!-- Receipt Vendor Branding Card -->
+      <div class="glass-card" style="padding:28px; margin-top:24px; border-color:rgba(59,130,246,0.3);">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
+          <div>
+            <h3 style="font-size:18px; font-weight:800; color:#60a5fa; margin-bottom:4px;">🧾 Receipt Vendor Branding Watermark</h3>
+            <p style="font-size:13px; color:var(--text-muted);">
+              Controls the footer branding line printed at the very bottom of every customer bill.
+            </p>
+          </div>
+          <span id="brandingPill" class="pill pill-green" style="font-size:11px;">Active on Bills</span>
+        </div>
+
+        <div style="background:#0c1220; border:1px solid var(--border); border-radius:16px; padding:16px; margin-bottom:18px;">
+          <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+            <input type="checkbox" id="receiptBrandingCheckbox" style="width:18px; height:18px; cursor:pointer;" onchange="handleSaveBranding()">
+            <label for="receiptBrandingCheckbox" style="font-weight:700; font-size:13px; cursor:pointer;">
+              Print Vendor Watermark at bottom of receipts (Default: ON)
+            </label>
+          </div>
+          <p style="font-size:11px; color:#9ca3af; line-height:1.4;">
+            By default, <code>System by JK Soft - 070 522 4007</code> prints at the bottom of every bill. If a shop owner objects or requests to hide it, uncheck this box to remove it completely. Shop owners cannot change this from their POS interface.
+          </p>
+        </div>
+
+        <div class="input-group" style="margin-bottom:16px;">
+          <label class="input-label">Vendor Watermark Text</label>
+          <input type="text" id="receiptBrandingTextInput" class="input-field font-mono" placeholder="System by JK Soft - 070 522 4007" value="System by JK Soft - 070 522 4007">
+        </div>
+
+        <button class="btn btn-primary" onclick="handleSaveBranding()">Save Receipt Branding</button>
       </div>
     </div>
 
@@ -792,9 +908,33 @@ function renderDeveloperPortalHTML(port: number): string {
       // License Tab
       document.getElementById('licenseMachineIdSpan').textContent = data.machineId || '—';
       document.getElementById('licenseKeyInput').value = data.license?.licenseKey || '';
-      document.getElementById('licenseBadgeContainer').innerHTML = data.license?.isActivated
-        ? '<span class="pill pill-green" style="font-size:13px; padding:6px 14px;">🛡️ ' + data.license.tier + ' Active</span>'
-        : '<span class="pill pill-amber" style="font-size:13px; padding:6px 14px;">⚠️ Unregistered</span>';
+
+      const lic = data.license || {};
+      const badgeContainer = document.getElementById('licenseBadgeContainer');
+      const trialPill = document.getElementById('trialStatusPill');
+      const trialBox = document.getElementById('trialInfoBox');
+
+      if (lic.status === 'ACTIVE') {
+        badgeContainer.innerHTML = '<span class="pill pill-green" style="font-size:13px; padding:6px 14px;">🛡️ ' + lic.tier + ' Active</span>';
+        if (trialPill) { trialPill.className = 'pill pill-green'; trialPill.textContent = 'Full License Active'; }
+        if (trialBox) { trialBox.innerHTML = '<span style="color:#34d399; font-weight:700;">✓ Lifetime Unlocked</span>'; }
+      } else if (lic.status === 'TRIAL_ACTIVE') {
+        badgeContainer.innerHTML = '<span class="pill pill-amber" style="font-size:13px; padding:6px 14px;">⏳ Trial (' + lic.daysLeft + ' Days Left)</span>';
+        if (trialPill) { trialPill.className = 'pill pill-amber'; trialPill.textContent = 'Trial Active'; }
+        if (trialBox) { trialBox.innerHTML = '<span style="color:#fbbf24; font-weight:700;">⏳ ' + lic.daysLeft + ' Days Left</span><br><span style="color:#9ca3af; font-size:11px;">Expires: ' + (lic.trialEnd ? new Date(lic.trialEnd).toLocaleDateString() : '—') + '</span>'; }
+      } else if (lic.status === 'TRIAL_EXPIRED') {
+        badgeContainer.innerHTML = '<span class="pill pill-rose" style="font-size:13px; padding:6px 14px;">🔴 Trial Expired (Locked)</span>';
+        if (trialPill) { trialPill.className = 'pill pill-rose'; trialPill.textContent = 'Trial Expired (Locked)'; }
+        if (trialBox) { trialBox.innerHTML = '<span style="color:#f87171; font-weight:700;">🔴 Expired (Locked)</span><br><span style="color:#9ca3af; font-size:11px;">POS lockout active</span>'; }
+      } else if (lic.status === 'TAMPERED') {
+        badgeContainer.innerHTML = '<span class="pill pill-rose" style="font-size:13px; padding:6px 14px;">⚠️ Security Violation</span>';
+        if (trialPill) { trialPill.className = 'pill pill-rose'; trialPill.textContent = 'Clock Tampering Detected'; }
+        if (trialBox) { trialBox.innerHTML = '<span style="color:#f87171; font-weight:700;">Tamper Lockout</span>'; }
+      } else {
+        badgeContainer.innerHTML = '<span class="pill pill-amber" style="font-size:13px; padding:6px 14px;">⚠️ Setup Required</span>';
+        if (trialPill) { trialPill.className = 'pill pill-amber'; trialPill.textContent = 'Unconfigured'; }
+        if (trialBox) { trialBox.innerHTML = '<span style="color:#9ca3af;">Awaiting Trial or Key</span>'; }
+      }
 
       // Supabase Tab
       document.getElementById('supabaseUrlInput').value = data.supabase?.url || '';
@@ -856,6 +996,49 @@ function renderDeveloperPortalHTML(port: number): string {
       if (currentStatus?.machineId) {
         navigator.clipboard.writeText(currentStatus.machineId);
         showToast('✓ Machine ID copied to clipboard');
+      }
+    }
+
+    async function handleStartTrial(days) {
+      try {
+        const res = await apiFetch('/api/license/trial/start', {
+          method: 'POST',
+          body: JSON.stringify({ days }),
+        });
+        showToast(res.message);
+        checkAuthAndLoad();
+      } catch (err) {
+        showToast('Failed to start trial', true);
+      }
+    }
+
+    async function handleStartCustomTrial() {
+      const days = parseInt(document.getElementById('customTrialDaysInput').value, 10);
+      if (!days || days < 1) return showToast('Please enter a valid number of days', true);
+      await handleStartTrial(days);
+    }
+
+    async function handleExtendTrial(days) {
+      try {
+        const res = await apiFetch('/api/license/trial/extend', {
+          method: 'POST',
+          body: JSON.stringify({ days }),
+        });
+        showToast(res.message);
+        checkAuthAndLoad();
+      } catch (err) {
+        showToast('Failed to extend trial', true);
+      }
+    }
+
+    async function handleEndTrial() {
+      if (!confirm('Are you sure you want to end the trial and lock out the POS app now?')) return;
+      try {
+        const res = await apiFetch('/api/license/trial/end', { method: 'POST' });
+        showToast(res.message);
+        checkAuthAndLoad();
+      } catch (err) {
+        showToast('Failed to end trial', true);
       }
     }
 

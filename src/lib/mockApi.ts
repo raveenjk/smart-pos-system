@@ -298,7 +298,7 @@ export function setupBrowserMockApi() {
       const newC: Category = { id: Date.now(), name: data.name || '', description: data.description };
       categories = [...categories, newC];
       setStored('categories', categories);
-      return newC;
+      return { success: true, id: newC.id, name: newC.name };
     },
     deleteCategory: async (id: number) => {
       // Reassign to category 1 (General)
@@ -623,14 +623,28 @@ export function setupBrowserMockApi() {
 
     // License & System
     getLicenseStatus: async () => ({
+      status: 'ACTIVE',
       isActivated: true,
+      isTrial: false,
+      isExpired: false,
       machineId: 'DEMO-BROWSER-PREVIEW',
       licenseKey: 'POS-LIFE-DEMO01-B60F0227',
       tier: 'LIFETIME (Browser Preview)',
+      daysLeft: 9999,
+      trialStart: null,
+      trialEnd: null,
+      whatsappNumber: '0705224007',
+      hotline: '070 522 4007',
+      message: 'Browser demo preview active!',
     }),
     getMachineId: async () => 'DEMO-BROWSER-PREVIEW',
     activateLicense: async () => ({ success: true, message: 'Browser demo preview active!' }),
-    getMaintenanceStatus: async () => ({ enabled: false, message: '' }),
+    startTrial: async (days: number) => ({ success: true, message: `Mock trial of ${days} days started!` }),
+    extendTrial: async (days: number) => ({ success: true, message: `Mock trial extended by ${days} days!` }),
+    endTrial: async () => ({ success: true, message: 'Mock trial ended!' }),
+    onLicenseUpdate: () => {},
+    getMaintenanceStatus: async () => ({ active: false, message: '' }),
+    onMaintenanceUpdate: () => {},
     openDeveloperPortal: async () => {
       window.open('http://localhost:4800/developer', '_blank');
       return { success: true };
