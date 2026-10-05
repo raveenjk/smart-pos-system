@@ -77,6 +77,12 @@ contextBridge.exposeInMainWorld('api', {
   getLicenseStatus: () => ipcRenderer.invoke('license:getStatus'),
   getMachineId: () => ipcRenderer.invoke('license:getMachineId'),
   activateLicense: (key: string) => ipcRenderer.invoke('license:activate', key),
+  startTrial: (days: number) => ipcRenderer.invoke('license:startTrial', days),
+  extendTrial: (days: number) => ipcRenderer.invoke('license:extendTrial', days),
+  endTrial: () => ipcRenderer.invoke('license:endTrial'),
+  onLicenseUpdate: (callback: (status: any) => void) => {
+    ipcRenderer.on('license:statusUpdate', (_event, status) => callback(status));
+  },
 
   // System & Maintenance
   getMaintenanceStatus: () => ipcRenderer.invoke('system:getMaintenanceStatus'),

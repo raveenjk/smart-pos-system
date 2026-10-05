@@ -6,7 +6,16 @@ import crypto from 'crypto';
 import os from 'os';
 import { BrowserWindow } from 'electron';
 import { getDb, DB_PATH } from '../database/schema';
-import { getMachineId, getLicenseStatus, activateLicense, generateLicenseKey } from '../license/licenseManager';
+import {
+  getMachineId,
+  getLicenseStatus,
+  activateLicense,
+  generateLicenseKey,
+  startTrial,
+  extendTrial,
+  endTrial,
+  deactivateLicense,
+} from '../license/licenseManager';
 
 let server: http.Server | null = null;
 let currentPort = 4800;
@@ -67,16 +76,16 @@ function hashPassword(password: string, salt: string): string {
 }
 
 function ensureDeveloperCredentials() {
-  const db = getDb();
   const email = getStoredSetting('dev_email', '');
-  if (!email) {
+  if (!email || email === 'raveenmadhawa48@gmail.com') {
     setStoredSetting('dev_email', 'developer@gmail.com');
   }
 
   let salt = getStoredSetting('dev_password_salt', '');
   let hash = getStoredSetting('dev_password_hash', '');
 
-  if (!salt || !hash) {
+  // Reset to default admin@2026 if empty or if set to raveen password
+  if (!salt || !hash || hash === hashPassword('admin@20262000414', salt)) {
     salt = crypto.randomBytes(16).toString('hex');
     hash = hashPassword('admin@2026', salt);
     setStoredSetting('dev_password_salt', salt);
