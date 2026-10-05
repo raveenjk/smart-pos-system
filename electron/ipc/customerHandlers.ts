@@ -61,10 +61,17 @@ export function registerEmployeeHandlers() {
   });
 
   ipcMain.handle('employees:update', (_event, id: number, data: any) => {
-    db.prepare(`
-      UPDATE employees SET name = @name, role = @role, phone = @phone,
-        updated_at = datetime('now') WHERE id = @id
-    `).run({ ...data, id });
+    if (data.pin && String(data.pin).trim()) {
+      db.prepare(`
+        UPDATE employees SET name = @name, role = @role, phone = @phone, pin = @pin,
+          updated_at = datetime('now') WHERE id = @id
+      `).run({ ...data, pin: String(data.pin).trim(), id });
+    } else {
+      db.prepare(`
+        UPDATE employees SET name = @name, role = @role, phone = @phone,
+          updated_at = datetime('now') WHERE id = @id
+      `).run({ ...data, id });
+    }
     return { id, ...data };
   });
 

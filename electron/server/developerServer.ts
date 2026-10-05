@@ -402,6 +402,52 @@ export function startDeveloperServer(preferredPort: number = 4800): Promise<numb
         return;
       }
 
+      // 11. GET /api/employees (Developer Super Admin View)
+      if (pathname === '/api/employees' && req.method === 'GET') {
+        const db = getDb();
+        const employees = db.prepare(`
+          SELECT id, name, role, pin, phone, is_active, created_at, updated_at
+          FROM employees
+          WHERE is_active = 1
+          ORDER BY id ASC
+        `).all();
+        sendJson(res, 200, { success: true, employees });
+        return;
+      }
+
+      // 12. POST /api/employees/reset-pin (Developer Emergency PIN Reset)
+      if (pathname === '/api/employees/reset-pin' && req.method === 'POST') {
+        const body = await parseBody(req);
+        const empId = parseInt(body.id, 10);
+        const newPin = String(body.newPin || '1234').trim();
+
+        if (!empId) {
+          sendJson(res, 400, { success: false, message: 'Invalid employee ID' });
+          return;
+        }
+
+        if (!/^\d{4}$/.test(newPin)) {
+          sendJson(res, 400, { success: false, message: 'PIN must be exactly 4 numeric digits' });
+          return;
+        }
+
+        const db = getDb();
+        const result = db.prepare('UPDATE employees SET pin = ?, updated_at = datetime("now") WHERE id = ?').run(newPin, empId);
+
+        if (result.changes === 0) {
+          sendJson(res, 404, { success: false, message: 'Employee not found' });
+          return;
+        }
+
+        sendJson(res, 200, {
+          success: true,
+          message: `PIN for Employee #${empId} successfully reset to ${newPin}!`,
+          id: empId,
+          pin: newPin,
+        });
+        return;
+      }
+
       sendJson(res, 404, { success: false, message: 'Endpoint not found' });
     });
 
@@ -809,6 +855,44 @@ function renderDeveloperPortalHTML(port: number): string {
 
         <button class="btn btn-primary" onclick="handleSaveBranding()">Save Receipt Branding</button>
       </div>
+
+      <!-- 👥 Staff & Admin Emergency PIN Manager -->
+      <div class="glass-card" style="padding:28px; margin-top:24px; border-color:rgba(168,85,247,0.35);">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+          <div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:20px;">👥</span>
+              <h3 style="font-size:18px; font-weight:800; color:#c084fc;">Staff & Admin Emergency PIN Manager</h3>
+              <span class="pill pill-purple" style="background:rgba(168,85,247,0.15); color:#c084fc; border:1px solid rgba(168,85,247,0.3); font-size:11px;">Developer Recovery</span>
+            </div>
+            <p style="font-size:13px; color:var(--text-muted); margin-top:4px;">
+              View all active employees' PINs and instantly reset forgotten Admin or Cashier PINs to default.
+            </p>
+          </div>
+          <button class="btn btn-secondary" style="font-size:12px; padding:6px 12px;" onclick="loadEmployees()">🔄 Refresh PINs</button>
+        </div>
+
+        <div style="overflow-x:auto; margin-top:12px;">
+          <table style="width:100%; border-collapse:collapse; text-align:left; font-size:13px;">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border); color:var(--text-muted); font-size:11px; text-transform:uppercase;">
+                <th style="padding:10px 8px;">ID</th>
+                <th style="padding:10px 8px;">Name</th>
+                <th style="padding:10px 8px;">Role</th>
+                <th style="padding:10px 8px;">Phone</th>
+                <th style="padding:10px 8px;">Active PIN</th>
+                <th style="padding:10px 8px; text-align:right;">Emergency Actions</th>
+              </tr>
+            </thead>
+            <tbody id="employeePinTableBody">
+              <tr><td colspan="6" style="padding:16px 8px; text-align:center; color:var(--text-muted);">Loading employee credentials...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="font-size:11px; color:#9ca3af; margin-top:12px; line-height:1.4;">
+          💡 <strong>Admin PIN Recovery:</strong> If the shop owner forgets their Admin PIN and cannot log in to POS or Employees screen, click <strong>"⚡ Reset to 1234"</strong> to immediately unlock their Admin account with default PIN <code>1234</code>.
+        </p>
+      </div>
     </div>
 
     <!-- 5. Developer Security Tab -->
@@ -881,6 +965,7 @@ function renderDeveloperPortalHTML(port: number): string {
           document.getElementById('logoutBtn').style.display = 'block';
           document.getElementById('userEmailSpan').textContent = data.devEmail || 'Developer';
           populateData(data);
+          loadEmployees();
         }
       } catch (err) {
         console.error(err);
@@ -1182,6 +1267,82 @@ function renderDeveloperPortalHTML(port: number): string {
         }
       } catch (err) {
         showToast('Failed to update credentials', true);
+      }
+    }
+
+    async function loadEmployees() {
+      try {
+        const res = await apiFetch('/api/employees');
+        const tbody = document.getElementById('employeePinTableBody');
+        if (!tbody) return;
+
+        if (res.success && Array.isArray(res.employees)) {
+          if (res.employees.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="padding:16px; text-align:center; color:var(--text-muted);">No employees found in database</td></tr>';
+            return;
+          }
+          tbody.innerHTML = res.employees.map(emp => {
+            var roleBadge = emp.role === 'admin'
+              ? '<span class="pill pill-rose" style="font-size:11px;">Admin</span>'
+              : emp.role === 'manager'
+              ? '<span class="pill pill-amber" style="font-size:11px;">Manager</span>'
+              : '<span class="pill" style="background:rgba(59,130,246,0.15); color:#60a5fa; border:1px solid rgba(59,130,246,0.3); font-size:11px;">Cashier</span>';
+
+            var safeName = (emp.name || '').replace(/'/g, "\\'");
+            var phoneVal = emp.phone || '—';
+
+            return '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);">' +
+              '<td style="padding:12px 8px;" class="font-mono text-muted">#' + emp.id + '</td>' +
+              '<td style="padding:12px 8px; font-weight:700;">' + emp.name + '</td>' +
+              '<td style="padding:12px 8px;">' + roleBadge + '</td>' +
+              '<td style="padding:12px 8px; color:var(--text-muted);">' + phoneVal + '</td>' +
+              '<td style="padding:12px 8px;">' +
+                '<span class="font-mono" style="background:#0c1220; padding:4px 10px; border-radius:6px; font-weight:800; color:#38bdf8; letter-spacing:2px; border:1px solid var(--border); font-size:13px;">' + emp.pin + '</span>' +
+              '</td>' +
+              '<td style="padding:12px 8px; text-align:right;">' +
+                '<button class="btn btn-secondary" style="font-size:11px; padding:5px 10px; border-color:#a855f7; color:#c084fc; margin-right:6px;" onclick="handleResetPin(' + emp.id + ', \'1234\')">⚡ Reset to 1234</button>' +
+                '<button class="btn btn-secondary" style="font-size:11px; padding:5px 10px;" onclick="promptCustomPin(' + emp.id + ', \'' + safeName + '\')">✏️ Custom PIN</button>' +
+              '</td>' +
+            '</tr>';
+          }).join('');
+        } else {
+          tbody.innerHTML = '<tr><td colspan="6" style="padding:16px; text-align:center; color:#f87171;">Failed to load employees</td></tr>';
+        }
+      } catch (err) {
+        console.error('Failed to load employees:', err);
+      }
+    }
+
+    async function handleResetPin(id, newPin) {
+      if (!confirm('Reset PIN for Employee #' + id + ' to ' + newPin + '?')) return;
+      try {
+        const res = await apiFetch('/api/employees/reset-pin', {
+          method: 'POST',
+          body: JSON.stringify({ id, newPin }),
+        });
+        showToast(res.message);
+        loadEmployees();
+      } catch (err) {
+        showToast('Failed to reset PIN', true);
+      }
+    }
+
+    async function promptCustomPin(id, name) {
+      var pin = prompt('Enter new 4-digit PIN for ' + name + ':', '1234');
+      if (!pin) return;
+      var trimmed = pin.trim();
+      if (trimmed.length !== 4 || isNaN(Number(trimmed))) {
+        return alert('PIN must be exactly 4 numeric digits');
+      }
+      try {
+        const res = await apiFetch('/api/employees/reset-pin', {
+          method: 'POST',
+          body: JSON.stringify({ id, newPin: trimmed }),
+        });
+        showToast(res.message);
+        loadEmployees();
+      } catch (err) {
+        showToast('Failed to update PIN', true);
       }
     }
 
