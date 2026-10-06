@@ -33,6 +33,8 @@ export default function POS() {
   const qtyInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
   // Trigger to auto-focus and select quantity for recently scanned/added item
   const [focusTrigger, setFocusTrigger] = useState<{ id: number; timestamp: number } | null>(null);
+  // Active row id currently focused by cashier
+  const [activeRowId, setActiveRowId] = useState<number | null>(null);
 
   const focusItemQty = useCallback((productId: number) => {
     setFocusTrigger({ id: productId, timestamp: Date.now() });
@@ -79,7 +81,7 @@ export default function POS() {
     }
   }, [customerSearch]);
 
-  // Auto-focus and select quantity input when an item is scanned or added
+  // Auto-focus and select quantity input when an item is scanned or added from grid
   useEffect(() => {
     if (!focusTrigger) return;
     const timer = setTimeout(() => {
@@ -89,9 +91,10 @@ export default function POS() {
         input.focus();
         input.select();
       }
-    }, 60);
+      setActiveRowId(focusTrigger.id);
+    }, 50);
     return () => clearTimeout(timer);
-  }, [focusTrigger, items]);
+  }, [focusTrigger]);
 
   // Global barcode scanner listener (keyboard wedge / USB scanner sends keystrokes fast)
   useEffect(() => {
@@ -325,7 +328,7 @@ export default function POS() {
           ) : (
             <div className="p-2 space-y-1.5">
               {items.map((item, index) => {
-                const isSelected = focusTrigger?.id === item.product_id;
+                const isSelected = activeRowId === item.product_id;
                 return (
                   <div
                     key={item.product_id}
@@ -352,7 +355,7 @@ export default function POS() {
                         >
                           <Minus size={10} />
                         </button>
-                        {/* Direct editable quantity: auto-selects on click/focus so typing any digit instantly replaces current value */}
+                        {/* Direct editable quantity: auto-selects on focus so typing any digit replaces 1, and lets you type multi-digits (10, 20, 100) freely */}
                         <input
                           ref={(el) => { qtyInputRefs.current[item.product_id] = el; }}
                           data-qty-input="true"
@@ -361,10 +364,9 @@ export default function POS() {
                           min={1}
                           value={editingQty[item.product_id] !== undefined ? editingQty[item.product_id] : item.quantity}
                           onFocus={(e) => {
+                            setActiveRowId(item.product_id);
                             e.target.select();
-                            setFocusTrigger({ id: item.product_id, timestamp: Date.now() });
                           }}
-                          onClick={(e) => (e.target as HTMLInputElement).select()}
                           onChange={(e) => {
                             const val = e.target.value;
                             setEditingQty((prev) => ({ ...prev, [item.product_id]: val }));
@@ -374,6 +376,7 @@ export default function POS() {
                             }
                           }}
                           onBlur={() => {
+                            setActiveRowId(null);
                             const raw = editingQty[item.product_id];
                             if (raw !== undefined) {
                               const parsed = parseInt(raw, 10);
@@ -392,7 +395,7 @@ export default function POS() {
                               (e.target as HTMLInputElement).blur();
                             }
                           }}
-                          className={`w-11 text-center font-bold text-sm rounded-lg py-0.5 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none transition-all ${
+                          className={`w-14 text-center font-bold text-sm rounded-lg py-0.5 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none transition-all ${
                             isSelected
                               ? 'bg-white border-2 border-blue-500 shadow-sm ring-1 ring-blue-400'
                               : 'bg-white border border-gray-300 hover:border-blue-400 focus:border-blue-500'
