@@ -85,12 +85,20 @@ export default function PaymentModal({
       receipt_header: settings.receipt_header || '',
       cashier_name: currentEmployee?.name || 'Staff',
       customer_name: customer?.name,
-      items: cartItems.map((i) => ({
-        product_name: i.product_name,
-        quantity: i.quantity,
-        unit_price: i.unit_price,
-        total: i.total,
-      })),
+      items: cartItems.map((i) => {
+        let displayQty: string | number = i.quantity;
+        if (i.unit === 'kg') {
+          displayQty = i.quantity < 1 ? `${Math.round(i.quantity * 1000)}g` : `${i.quantity}kg`;
+        } else if (i.unit && i.unit !== 'pcs') {
+          displayQty = `${i.quantity}${i.unit}`;
+        }
+        return {
+          product_name: i.product_name,
+          quantity: displayQty as any,
+          unit_price: i.unit_price,
+          total: i.total,
+        };
+      }),
       subtotal,
       discount,
       tax,
@@ -138,7 +146,15 @@ export default function PaymentModal({
     const settings = await window.api.getSettings();
     const shopName = settings.shop_name || 'My Shop';
     const itemsText = cartItems
-      .map((i) => `• ${i.product_name} x${i.quantity} = LKR ${i.total.toFixed(2)}`)
+      .map((i) => {
+        let qtyLabel = `x${i.quantity}`;
+        if (i.unit === 'kg') {
+          qtyLabel = i.quantity < 1 ? `${Math.round(i.quantity * 1000)}g` : `${i.quantity}kg`;
+        } else if (i.unit && i.unit !== 'pcs') {
+          qtyLabel = `${i.quantity}${i.unit}`;
+        }
+        return `• ${i.product_name} (${qtyLabel}) = LKR ${i.total.toFixed(2)}`;
+      })
       .join('\n');
 
     const msg = `🧾 *${shopName}* - Receipt\n` +

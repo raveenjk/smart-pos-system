@@ -66,10 +66,15 @@ export const useCartStore = create<CartStore>((set, get) => ({
       get().removeItem(productId);
       return;
     }
+    const cleanQty = Math.round(quantity * 1000) / 1000;
     set((state) => ({
       items: state.items.map((i) =>
         i.product_id === productId
-          ? { ...i, quantity, total: quantity * i.unit_price * (1 - i.discount / 100) }
+          ? {
+              ...i,
+              quantity: cleanQty,
+              total: Math.round(cleanQty * i.unit_price * (1 - i.discount / 100) * 100) / 100,
+            }
           : i
       ),
     }));

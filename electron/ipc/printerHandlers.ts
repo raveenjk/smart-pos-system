@@ -15,7 +15,7 @@ interface ReceiptData {
   customer_name?: string;
   items: {
     product_name: string;
-    quantity: number;
+    quantity: number | string;
     unit_price: number;
     total: number;
   }[];

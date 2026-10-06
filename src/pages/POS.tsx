@@ -35,6 +35,17 @@ export default function POS() {
   const [focusTrigger, setFocusTrigger] = useState<{ id: number; timestamp: number } | null>(null);
   // Active row id currently focused by cashier
   const [activeRowId, setActiveRowId] = useState<number | null>(null);
+  // Weight unit toggle for loose items (kg/g): maps product_id -> 'kg' | 'g'
+  const [itemWeightUnit, setItemWeightUnit] = useState<Record<number, 'kg' | 'g'>>({});
+
+  const toggleWeightUnit = useCallback((productId: number, newUnit: 'kg' | 'g') => {
+    setItemWeightUnit((prev) => ({ ...prev, [productId]: newUnit }));
+    setEditingQty((prev) => {
+      const next = { ...prev };
+      delete next[productId];
+      return next;
+    });
+  }, []);
 
   const focusItemQty = useCallback((productId: number) => {
     setFocusTrigger({ id: productId, timestamp: Date.now() });
@@ -329,6 +340,49 @@ export default function POS() {
             <div className="p-2 space-y-1.5">
               {items.map((item, index) => {
                 const isSelected = activeRowId === item.product_id;
+                const isWeight = item.unit === 'kg' || item.unit === 'g';
+                const activeUnit = itemWeightUnit[item.product_id] || (item.unit === 'g' ? 'g' : (item.unit === 'kg' ? 'kg' : 'pcs'));
+
+                // Calculate display value (e.g. 500 in g mode or 0.5 in kg mode)
+                let displayVal: string | number = '';
+                if (editingQty[item.product_id] !== undefined) {
+                  displayVal = editingQty[item.product_id];
+                } else {
+                  if (isWeight && activeUnit === 'g') {
+                    displayVal = item.unit === 'kg' ? Math.round(item.quantity * 1000) : item.quantity;
+                  } else if (isWeight && activeUnit === 'kg') {
+                    displayVal = item.unit === 'g' ? (item.quantity / 1000) : item.quantity;
+                  } else {
+                    displayVal = item.quantity;
+                  }
+                }
+
+                const handleIncrement = () => {
+                  if (isWeight && activeUnit === 'g' && item.unit === 'kg') {
+                    updateQuantity(item.product_id, Math.round((item.quantity + 0.1) * 1000) / 1000);
+                  } else if (isWeight && activeUnit === 'kg') {
+                    const step = item.quantity < 1 ? 0.25 : 0.5;
+                    updateQuantity(item.product_id, Math.round((item.quantity + step) * 1000) / 1000);
+                  } else {
+                    updateQuantity(item.product_id, item.quantity + 1);
+                  }
+                  setEditingQty((prev) => { const n = { ...prev }; delete n[item.product_id]; return n; });
+                };
+
+                const handleDecrement = () => {
+                  if (isWeight && activeUnit === 'g' && item.unit === 'kg') {
+                    const nextQ = Math.max(0.05, Math.round((item.quantity - 0.1) * 1000) / 1000);
+                    updateQuantity(item.product_id, nextQ);
+                  } else if (isWeight && activeUnit === 'kg') {
+                    const step = item.quantity <= 1 ? 0.25 : 0.5;
+                    const nextQ = Math.max(0.05, Math.round((item.quantity - step) * 1000) / 1000);
+                    updateQuantity(item.product_id, nextQ);
+                  } else {
+                    updateQuantity(item.product_id, item.quantity - 1);
+                  }
+                  setEditingQty((prev) => { const n = { ...prev }; delete n[item.product_id]; return n; });
+                };
+
                 return (
                   <div
                     key={item.product_id}
@@ -341,28 +395,38 @@ export default function POS() {
                     <div className="flex items-start justify-between gap-1">
                       <div className="flex items-start gap-1.5 flex-1 min-w-0">
                         <span className="text-xs text-gray-400 font-mono mt-0.5 shrink-0">{index + 1}.</span>
-                        <p className="text-xs font-semibold text-gray-800 leading-tight line-clamp-2">{item.product_name}</p>
+                        <div>
+                          <p className="text-xs font-semibold text-gray-800 leading-tight line-clamp-2">{item.product_name}</p>
+                          {isWeight && (
+                            <span className="inline-block mt-0.5 px-1.5 py-0.2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[10px] font-medium">
+                              ⚖️ Weighed ({item.unit})
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <button onClick={() => removeItem(item.product_id)} className="text-gray-300 hover:text-red-500 shrink-0 mt-0.5">
                         <Trash2 size={12} />
                       </button>
                     </div>
+
                     <div className="flex items-center justify-between mt-2">
                       <div className="flex items-center gap-1">
                         <button
-                          onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
-                          className="w-6 h-6 rounded-lg bg-gray-200 hover:bg-red-100 hover:text-red-600 flex items-center justify-center transition-colors shrink-0"
+                          onClick={handleDecrement}
+                          className="w-6 h-6 rounded-lg bg-gray-200 hover:bg-red-100 hover:text-red-600 flex items-center justify-center transition-colors shrink-0 cursor-pointer"
                         >
                           <Minus size={10} />
                         </button>
-                        {/* Direct editable quantity: auto-selects on focus so typing any digit replaces 1, and lets you type multi-digits (10, 20, 100) freely */}
+
+                        {/* Direct editable quantity or weight */}
                         <input
                           ref={(el) => { qtyInputRefs.current[item.product_id] = el; }}
                           data-qty-input="true"
                           data-product-id={item.product_id}
                           type="number"
-                          min={1}
-                          value={editingQty[item.product_id] !== undefined ? editingQty[item.product_id] : item.quantity}
+                          step="any"
+                          min={0.001}
+                          value={displayVal}
                           onFocus={(e) => {
                             setActiveRowId(item.product_id);
                             e.target.select();
@@ -370,16 +434,22 @@ export default function POS() {
                           onChange={(e) => {
                             const val = e.target.value;
                             setEditingQty((prev) => ({ ...prev, [item.product_id]: val }));
-                            const parsed = parseInt(val, 10);
+                            const parsed = parseFloat(val);
                             if (!isNaN(parsed) && parsed > 0) {
-                              updateQuantity(item.product_id, parsed);
+                              if (isWeight && activeUnit === 'g' && item.unit === 'kg') {
+                                updateQuantity(item.product_id, parsed / 1000);
+                              } else if (isWeight && activeUnit === 'kg' && item.unit === 'g') {
+                                updateQuantity(item.product_id, parsed * 1000);
+                              } else {
+                                updateQuantity(item.product_id, parsed);
+                              }
                             }
                           }}
                           onBlur={() => {
                             setActiveRowId(null);
                             const raw = editingQty[item.product_id];
                             if (raw !== undefined) {
-                              const parsed = parseInt(raw, 10);
+                              const parsed = parseFloat(raw);
                               if (isNaN(parsed) || parsed <= 0) {
                                 updateQuantity(item.product_id, 1);
                               }
@@ -400,20 +470,109 @@ export default function POS() {
                               ? 'bg-white border-2 border-blue-500 shadow-sm ring-1 ring-blue-400'
                               : 'bg-white border border-gray-300 hover:border-blue-400 focus:border-blue-500'
                           }`}
-                          title="Click to type quantity"
+                          title={`Type in ${activeUnit}`}
                         />
+
                         <button
-                          onClick={() => updateQuantity(item.product_id, item.quantity + 1)}
-                          className="w-6 h-6 rounded-lg bg-gray-200 hover:bg-green-100 hover:text-green-600 flex items-center justify-center transition-colors shrink-0"
+                          onClick={handleIncrement}
+                          className="w-6 h-6 rounded-lg bg-gray-200 hover:bg-green-100 hover:text-green-600 flex items-center justify-center transition-colors shrink-0 cursor-pointer"
                         >
                           <Plus size={10} />
                         </button>
+
+                        {/* kg / g Mode Switch for weighed items */}
+                        {isWeight && (
+                          <div className="flex rounded-md border border-gray-300 overflow-hidden text-[10px] font-bold shrink-0 ml-0.5 shadow-2xs">
+                            <button
+                              type="button"
+                              onClick={() => toggleWeightUnit(item.product_id, 'kg')}
+                              className={`px-1.5 py-0.5 transition-colors cursor-pointer ${
+                                activeUnit === 'kg'
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-white text-gray-500 hover:bg-gray-100'
+                              }`}
+                              title="Enter in Kilograms"
+                            >
+                              kg
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => toggleWeightUnit(item.product_id, 'g')}
+                              className={`px-1.5 py-0.5 transition-colors cursor-pointer ${
+                                activeUnit === 'g'
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-white text-gray-500 hover:bg-gray-100'
+                              }`}
+                              title="Enter in Grams"
+                            >
+                              g
+                            </button>
+                          </div>
+                        )}
                       </div>
+
                       <div className="text-right">
                         <p className="text-xs font-bold text-gray-800">{formatLKR(item.total)}</p>
-                        <p className="text-xs text-gray-400">{formatLKR(item.unit_price)} × {item.quantity}</p>
+                        <p className="text-[11px] text-gray-500">
+                          {isWeight ? (
+                            item.unit === 'kg' ? (
+                              item.quantity < 1 ? (
+                                `${Math.round(item.quantity * 1000)}g (${item.quantity}kg)`
+                              ) : (
+                                `${item.quantity}kg`
+                              )
+                            ) : (
+                              `${item.quantity}g`
+                            )
+                          ) : (
+                            `${formatLKR(item.unit_price)} × ${item.quantity}`
+                          )}
+                        </p>
                       </div>
                     </div>
+
+                    {/* Quick Presets for weight items: 100g, 250g, 500g, 1kg, 2kg */}
+                    {isWeight && (
+                      <div className="flex items-center gap-1 mt-2 pt-1.5 border-t border-gray-200/60 flex-wrap">
+                        <span className="text-[10px] text-gray-400 font-semibold uppercase mr-0.5">Quick:</span>
+                        {[
+                          { label: '100g', kg: 0.1 },
+                          { label: '250g', kg: 0.25 },
+                          { label: '500g', kg: 0.5 },
+                          { label: '1kg', kg: 1.0 },
+                          { label: '2kg', kg: 2.0 },
+                        ].map((preset) => {
+                          const targetQty = item.unit === 'g' ? preset.kg * 1000 : preset.kg;
+                          const isCurrent = Math.abs(item.quantity - targetQty) < 0.001;
+                          return (
+                            <button
+                              key={preset.label}
+                              type="button"
+                              onClick={() => {
+                                updateQuantity(item.product_id, targetQty);
+                                if (preset.label.endsWith('g')) {
+                                  setItemWeightUnit((prev) => ({ ...prev, [item.product_id]: 'g' }));
+                                } else {
+                                  setItemWeightUnit((prev) => ({ ...prev, [item.product_id]: 'kg' }));
+                                }
+                                setEditingQty((prev) => {
+                                  const next = { ...prev };
+                                  delete next[item.product_id];
+                                  return next;
+                                });
+                              }}
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all active:scale-95 cursor-pointer ${
+                                isCurrent
+                                  ? 'bg-blue-600 text-white shadow-xs'
+                                  : 'bg-white border border-gray-200 hover:border-blue-300 hover:bg-blue-50 text-gray-700 hover:text-blue-700'
+                              }`}
+                            >
+                              {preset.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })}
