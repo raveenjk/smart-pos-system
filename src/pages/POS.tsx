@@ -27,6 +27,16 @@ export default function POS() {
   // Barcode buffer for USB scanner (types fast)
   const barcodeBuffer = useRef('');
   const barcodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Direct quantity input tracking: maps product_id -> typed string
+  const [editingQty, setEditingQty] = useState<Record<number, string>>({});
+  // Ref map for cart item quantity inputs
+  const qtyInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
+  // Trigger to auto-focus and select quantity for recently scanned/added item
+  const [focusTrigger, setFocusTrigger] = useState<{ id: number; timestamp: number } | null>(null);
+
+  const focusItemQty = useCallback((productId: number) => {
+    setFocusTrigger({ id: productId, timestamp: Date.now() });
+  }, []);
 
   const {
     items, customer, discount, paymentMethod,
@@ -69,16 +79,58 @@ export default function POS() {
     }
   }, [customerSearch]);
 
+  // Auto-focus and select quantity input when an item is scanned or added
+  useEffect(() => {
+    if (!focusTrigger) return;
+    const timer = setTimeout(() => {
+      const input = qtyInputRefs.current[focusTrigger.id];
+      if (input) {
+        input.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        input.focus();
+        input.select();
+      }
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [focusTrigger, items]);
+
   // Global barcode scanner listener (keyboard wedge / USB scanner sends keystrokes fast)
   useEffect(() => {
+    let lastKeyTime = 0;
+
     const handleKeyDown = (e: KeyboardEvent) => {
       // Only capture when search not focused
       if (document.activeElement === searchRef.current) return;
+
+      const now = Date.now();
+      const timeDiff = now - lastKeyTime;
+      lastKeyTime = now;
+
+      // If rapid scanner keystrokes are coming into an already-focused qty input, prevent them from corrupting the qty
+      const isQtyInput = (document.activeElement as HTMLElement)?.hasAttribute('data-qty-input');
+      if (isQtyInput && timeDiff < 45 && e.key.length === 1) {
+        e.preventDefault();
+      }
+
       if (e.key === 'Enter') {
         const barcode = barcodeBuffer.current.trim();
         if (barcode.length >= 3) {
+          e.preventDefault();
+          // Clean up any stray scanner characters in active qty input
+          const activeProductId = (document.activeElement as HTMLElement)?.getAttribute('data-product-id');
+          if (activeProductId) {
+            const pid = Number(activeProductId);
+            setEditingQty((prev) => {
+              const next = { ...prev };
+              delete next[pid];
+              return next;
+            });
+          }
+
           window.api.getProductByBarcode(barcode).then((product) => {
-            if (product) addItem(product);
+            if (product) {
+              addItem(product);
+              focusItemQty(product.id);
+            }
           });
         }
         barcodeBuffer.current = '';
@@ -90,7 +142,7 @@ export default function POS() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [addItem]);
+  }, [addItem, focusItemQty]);
 
   // Hold bill
   const handleHoldBill = useCallback(async () => {
@@ -165,27 +217,39 @@ export default function POS() {
         {/* Product Grid */}
         <div className="flex-1 overflow-auto p-3">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
-            {filteredProducts.map((product) => (
-              <button
-                key={product.id}
-                onClick={() => addItem(product)}
-                disabled={product.stock <= 0}
-                className={`bg-white rounded-xl p-3 text-left shadow-sm border-2 transition-all hover:border-blue-400 hover:shadow-md active:scale-95 ${
-                  product.stock <= 0 ? 'opacity-40 cursor-not-allowed border-transparent' : 'border-transparent'
-                }`}
-              >
-                <div className="w-full h-12 bg-gradient-to-br from-blue-50 to-indigo-100 rounded-lg flex items-center justify-center mb-2 text-xl">
-                  {product.image_url ? (
-                    <img src={product.image_url} alt={product.name} className="w-full h-full object-cover rounded-lg" />
-                  ) : '📦'}
-                </div>
-                <p className="text-xs font-semibold text-gray-800 leading-tight line-clamp-2">{product.name}</p>
-                <p className="text-sm font-bold text-blue-600 mt-1">{formatLKR(product.price)}</p>
-                <p className={`text-xs mt-0.5 ${product.stock <= product.low_stock_alert ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
-                  {product.stock} {product.unit}
-                </p>
-              </button>
-            ))}
+            {filteredProducts.map((product) => {
+              const cartItem = items.find((i) => i.product_id === product.id);
+              return (
+                <button
+                  key={product.id}
+                  onClick={() => {
+                    addItem(product);
+                    focusItemQty(product.id);
+                  }}
+                  disabled={product.stock <= 0}
+                  className={`relative bg-white rounded-xl p-3 text-left shadow-sm border-2 transition-all hover:border-blue-400 hover:shadow-md active:scale-95 ${
+                    product.stock <= 0 ? 'opacity-40 cursor-not-allowed border-transparent' : cartItem ? 'border-blue-200' : 'border-transparent'
+                  }`}
+                >
+                  {cartItem && (
+                    <span className="absolute top-1.5 right-1.5 bg-blue-600 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center leading-none shadow-sm">
+                      {cartItem.quantity}
+                    </span>
+                  )}
+                  <div className="w-full h-12 bg-gradient-to-br from-blue-50 to-indigo-100 rounded-lg flex items-center justify-center mb-2 text-xl">
+                    {product.image_url ? (
+                      <img src={product.image_url} alt={product.name} className="w-full h-full object-cover rounded-lg" />
+                    ) : '📦'}
+                  </div>
+                  <p className="text-xs font-semibold text-gray-800 leading-tight line-clamp-2">{product.name}</p>
+                  <p className="text-sm font-bold text-blue-600 mt-1">{formatLKR(product.price)}</p>
+                  <p className={`text-xs mt-0.5 ${product.stock <= product.low_stock_alert ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
+                    {product.stock} {product.unit}
+                  </p>
+                </button>
+              );
+            })}
+
           </div>
           {filteredProducts.length === 0 && (
             <div className="text-center py-16 text-gray-300">
@@ -260,40 +324,96 @@ export default function POS() {
             </div>
           ) : (
             <div className="p-2 space-y-1.5">
-              {items.map((item, index) => (
-                <div key={item.product_id} className="bg-gray-50 rounded-xl p-2.5 border border-gray-100">
-                  <div className="flex items-start justify-between gap-1">
-                    <div className="flex items-start gap-1.5 flex-1 min-w-0">
-                      <span className="text-xs text-gray-400 font-mono mt-0.5 shrink-0">{index + 1}.</span>
-                      <p className="text-xs font-semibold text-gray-800 leading-tight line-clamp-2">{item.product_name}</p>
-                    </div>
-                    <button onClick={() => removeItem(item.product_id)} className="text-gray-300 hover:text-red-500 shrink-0 mt-0.5">
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between mt-2">
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
-                        className="w-6 h-6 rounded-lg bg-gray-200 hover:bg-red-100 hover:text-red-600 flex items-center justify-center transition-colors"
-                      >
-                        <Minus size={10} />
-                      </button>
-                      <span className="text-sm font-bold w-8 text-center">{item.quantity}</span>
-                      <button
-                        onClick={() => updateQuantity(item.product_id, item.quantity + 1)}
-                        className="w-6 h-6 rounded-lg bg-gray-200 hover:bg-green-100 hover:text-green-600 flex items-center justify-center transition-colors"
-                      >
-                        <Plus size={10} />
+              {items.map((item, index) => {
+                const isSelected = focusTrigger?.id === item.product_id;
+                return (
+                  <div
+                    key={item.product_id}
+                    className={`rounded-xl p-2.5 border transition-all ${
+                      isSelected
+                        ? 'bg-blue-50/70 border-blue-400 ring-2 ring-blue-300/60 shadow-sm'
+                        : 'bg-gray-50 border-gray-100 hover:border-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-1">
+                      <div className="flex items-start gap-1.5 flex-1 min-w-0">
+                        <span className="text-xs text-gray-400 font-mono mt-0.5 shrink-0">{index + 1}.</span>
+                        <p className="text-xs font-semibold text-gray-800 leading-tight line-clamp-2">{item.product_name}</p>
+                      </div>
+                      <button onClick={() => removeItem(item.product_id)} className="text-gray-300 hover:text-red-500 shrink-0 mt-0.5">
+                        <Trash2 size={12} />
                       </button>
                     </div>
-                    <div className="text-right">
-                      <p className="text-xs font-bold text-gray-800">{formatLKR(item.total)}</p>
-                      <p className="text-xs text-gray-400">{formatLKR(item.unit_price)} × {item.quantity}</p>
+                    <div className="flex items-center justify-between mt-2">
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => updateQuantity(item.product_id, item.quantity - 1)}
+                          className="w-6 h-6 rounded-lg bg-gray-200 hover:bg-red-100 hover:text-red-600 flex items-center justify-center transition-colors shrink-0"
+                        >
+                          <Minus size={10} />
+                        </button>
+                        {/* Direct editable quantity: auto-selects on click/focus so typing any digit instantly replaces current value */}
+                        <input
+                          ref={(el) => { qtyInputRefs.current[item.product_id] = el; }}
+                          data-qty-input="true"
+                          data-product-id={item.product_id}
+                          type="number"
+                          min={1}
+                          value={editingQty[item.product_id] !== undefined ? editingQty[item.product_id] : item.quantity}
+                          onFocus={(e) => {
+                            e.target.select();
+                            setFocusTrigger({ id: item.product_id, timestamp: Date.now() });
+                          }}
+                          onClick={(e) => (e.target as HTMLInputElement).select()}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEditingQty((prev) => ({ ...prev, [item.product_id]: val }));
+                            const parsed = parseInt(val, 10);
+                            if (!isNaN(parsed) && parsed > 0) {
+                              updateQuantity(item.product_id, parsed);
+                            }
+                          }}
+                          onBlur={() => {
+                            const raw = editingQty[item.product_id];
+                            if (raw !== undefined) {
+                              const parsed = parseInt(raw, 10);
+                              if (isNaN(parsed) || parsed <= 0) {
+                                updateQuantity(item.product_id, 1);
+                              }
+                              setEditingQty((prev) => {
+                                const next = { ...prev };
+                                delete next[item.product_id];
+                                return next;
+                              });
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          className={`w-11 text-center font-bold text-sm rounded-lg py-0.5 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none transition-all ${
+                            isSelected
+                              ? 'bg-white border-2 border-blue-500 shadow-sm ring-1 ring-blue-400'
+                              : 'bg-white border border-gray-300 hover:border-blue-400 focus:border-blue-500'
+                          }`}
+                          title="Click to type quantity"
+                        />
+                        <button
+                          onClick={() => updateQuantity(item.product_id, item.quantity + 1)}
+                          className="w-6 h-6 rounded-lg bg-gray-200 hover:bg-green-100 hover:text-green-600 flex items-center justify-center transition-colors shrink-0"
+                        >
+                          <Plus size={10} />
+                        </button>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs font-bold text-gray-800">{formatLKR(item.total)}</p>
+                        <p className="text-xs text-gray-400">{formatLKR(item.unit_price)} × {item.quantity}</p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
