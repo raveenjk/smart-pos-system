@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { X, Printer, CheckCircle, FileText, MessageSquare } from 'lucide-react';
 import type { CartItem, Customer } from '../../types';
 import { format } from 'date-fns';
@@ -20,19 +20,30 @@ export default function PaymentModal({
   total, paymentMethod, cartItems, customer, discount, subtotal, tax,
   onClose, onSuccess,
 }: PaymentModalProps) {
-  const [amountPaid, setAmountPaid] = useState(total);
+  const [amountPaid, setAmountPaid] = useState<number | ''>(total);
   const [processing, setProcessing] = useState(false);
   const [success, setSuccess] = useState(false);
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [saleId, setSaleId] = useState<number | null>(null);
   const [customPhone, setCustomPhone] = useState(customer?.phone || '');
   const { currentEmployee } = useAuthStore();
+  const cashInputRef = useRef<HTMLInputElement>(null);
 
-  const change = Math.max(0, amountPaid - total);
+  useEffect(() => {
+    if (paymentMethod === 'cash') {
+      // Focus and select the default amount so typing immediately overwrites it
+      setTimeout(() => {
+        cashInputRef.current?.focus();
+        cashInputRef.current?.select();
+      }, 50);
+    }
+  }, [paymentMethod]);
+
+  const change = Math.max(0, (typeof amountPaid === 'number' ? amountPaid : 0) - total);
   const formatLKR = (v: number) => `LKR ${v.toLocaleString('en-LK', { minimumFractionDigits: 2 })}`;
 
   const handleCharge = async () => {
-    if (paymentMethod === 'cash' && amountPaid < total) return;
+    if (paymentMethod === 'cash' && (typeof amountPaid !== 'number' || amountPaid < total)) return;
     setProcessing(true);
     try {
       const result = await window.api?.createSale({
@@ -43,7 +54,7 @@ export default function PaymentModal({
         discount,
         tax,
         total,
-        amount_paid: amountPaid,
+        amount_paid: typeof amountPaid === 'number' ? amountPaid : total,
         change_amount: change,
         payment_method: paymentMethod,
       });
@@ -103,7 +114,7 @@ export default function PaymentModal({
       discount,
       tax,
       total,
-      amount_paid: amountPaid,
+      amount_paid: typeof amountPaid === 'number' ? amountPaid : total,
       change_amount: change,
       payment_method: paymentMethod,
       footer: settings.receipt_footer || 'Thank you for shopping!',
@@ -164,7 +175,7 @@ export default function PaymentModal({
       `*Subtotal:* LKR ${subtotal.toFixed(2)}\n` +
       (discount > 0 ? `*Discount:* -LKR ${discount.toFixed(2)}\n` : '') +
       `*TOTAL:* LKR ${total.toFixed(2)}\n` +
-      `Paid (${paymentMethod.toUpperCase()}): LKR ${amountPaid.toFixed(2)}\n` +
+      `Paid (${paymentMethod.toUpperCase()}): LKR ${(typeof amountPaid === 'number' ? amountPaid : total).toFixed(2)}\n` +
       (change > 0 ? `Change: LKR ${change.toFixed(2)}\n` : '') +
       `\n_${settings.receipt_footer || 'Thank you for shopping!'}_` +
       (settings.receipt_branding_enabled !== 'false'
@@ -304,9 +315,21 @@ export default function PaymentModal({
               <div>
                 <label className="text-xs text-gray-500 font-medium mb-1.5 block">AMOUNT RECEIVED</label>
                 <input
+                  ref={cashInputRef}
                   type="number"
                   value={amountPaid}
-                  onChange={(e) => setAmountPaid(Number(e.target.value))}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setAmountPaid(val === '' ? '' : Number(val));
+                  }}
+                  onFocus={(e) => e.target.select()}
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && typeof amountPaid === 'number' && amountPaid >= total) {
+                      handleCharge();
+                    }
+                  }}
+                  placeholder="0.00"
                   className="w-full border-2 border-blue-200 rounded-xl px-4 py-3 text-2xl font-bold text-center focus:outline-none focus:border-blue-500 transition-colors"
                   autoFocus
                 />
@@ -357,15 +380,20 @@ export default function PaymentModal({
           {/* Charge Button */}
           <button
             onClick={handleCharge}
-            disabled={processing || (paymentMethod === 'cash' && amountPaid < total)}
+            disabled={processing || (paymentMethod === 'cash' && (typeof amountPaid !== 'number' || amountPaid < total))}
             className="w-full py-3.5 bg-blue-600 text-white rounded-xl font-bold text-base hover:bg-blue-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-200"
           >
             {processing ? '⏳ Processing...' : `✓ Confirm ${formatLKR(total)}`}
           </button>
 
-          {paymentMethod === 'cash' && amountPaid < total && (
+          {paymentMethod === 'cash' && typeof amountPaid === 'number' && amountPaid < total && (
             <p className="text-center text-xs text-red-500">
               Need {formatLKR(total - amountPaid)} more
+            </p>
+          )}
+          {paymentMethod === 'cash' && amountPaid === '' && (
+            <p className="text-center text-xs text-red-500">
+              Need {formatLKR(total)} more
             </p>
           )}
         </div>
