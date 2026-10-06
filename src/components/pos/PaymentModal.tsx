@@ -39,6 +39,20 @@ export default function PaymentModal({
     }
   }, [paymentMethod]);
 
+  useEffect(() => {
+    if (success) {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.target instanceof HTMLInputElement && e.target.type === 'text') return;
+        if (e.key === 'Enter' || e.key === 'Escape') {
+          e.preventDefault();
+          onSuccess();
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [success, onSuccess]);
+
   const change = Math.max(0, (typeof amountPaid === 'number' ? amountPaid : 0) - total);
   const formatLKR = (v: number) => `LKR ${v.toLocaleString('en-LK', { minimumFractionDigits: 2 })}`;
 
@@ -65,11 +79,13 @@ export default function PaymentModal({
       // Auto-print receipt if enabled in Settings
       if (window.api?.getSettings && window.api?.printReceipt) {
         window.api.getSettings().then((settings) => {
-          if (settings?.auto_print_receipt === 'true') {
+          const isAutoPrint = String(settings?.auto_print_receipt).toLowerCase() === 'true';
+          const isSilent = String(settings?.silent_print).toLowerCase() === 'true';
+          if (isAutoPrint) {
             buildReceiptData(result?.invoice_number).then((data) => {
               window.api.printReceipt({
                 ...data,
-                silent: settings?.silent_print === 'true',
+                silent: isSilent,
               });
             });
           }
@@ -275,9 +291,10 @@ export default function PaymentModal({
             {/* New Sale Button */}
             <button
               onClick={onSuccess}
-              className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm shadow-md shadow-blue-200 active:scale-98 transition-all"
+              className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm shadow-md shadow-blue-200 active:scale-98 transition-all flex items-center justify-center gap-1.5"
             >
-              New Sale →
+              <span>New Sale</span>
+              <span className="text-xs font-normal opacity-75 bg-blue-700/60 px-1.5 py-0.5 rounded">Enter ↵</span>
             </button>
           </div>
         </div>

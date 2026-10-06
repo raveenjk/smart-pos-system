@@ -107,11 +107,14 @@ export default function POS() {
     return () => clearTimeout(timer);
   }, [focusTrigger]);
 
-  // Global barcode scanner listener (keyboard wedge / USB scanner sends keystrokes fast)
+  // Global barcode scanner & keyboard shortcuts listener
   useEffect(() => {
     let lastKeyTime = 0;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept if any modal is currently open
+      if (showPayment || showHold || showDiscountApproval) return;
+
       // Only capture when search not focused
       if (document.activeElement === searchRef.current) return;
 
@@ -146,8 +149,17 @@ export default function POS() {
               focusItemQty(product.id);
             }
           });
+          barcodeBuffer.current = '';
+        } else {
+          // Manual Enter pressed by cashier (not a barcode scan)
+          barcodeBuffer.current = '';
+          const target = e.target as HTMLElement;
+          const isTextInput = target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'text';
+          if (!isTextInput && items.length > 0) {
+            e.preventDefault();
+            setShowPayment(true);
+          }
         }
-        barcodeBuffer.current = '';
       } else if (e.key.length === 1) {
         barcodeBuffer.current += e.key;
         if (barcodeTimer.current) clearTimeout(barcodeTimer.current);
@@ -156,7 +168,7 @@ export default function POS() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [addItem, focusItemQty]);
+  }, [addItem, focusItemQty, items.length, showPayment, showHold, showDiscountApproval]);
 
   // Hold bill
   const handleHoldBill = useCallback(async () => {
@@ -462,7 +474,14 @@ export default function POS() {
                           }}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
+                              if (barcodeBuffer.current.trim().length >= 3) {
+                                return; // Barcode scanner reading next item
+                              }
+                              e.preventDefault();
                               (e.target as HTMLInputElement).blur();
+                              if (items.length > 0) {
+                                setShowPayment(true);
+                              }
                             }
                           }}
                           className={`w-14 text-center font-bold text-sm rounded-lg py-0.5 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none transition-all ${
@@ -677,9 +696,14 @@ export default function POS() {
           <button
             onClick={() => setShowPayment(true)}
             disabled={items.length === 0}
-            className="w-full py-3 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-700 active:scale-95 disabled:opacity-40 transition-all shadow-lg shadow-blue-200"
+            className="w-full py-3 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-700 active:scale-95 disabled:opacity-40 transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-2 cursor-pointer"
           >
-            💳 Charge {items.length > 0 ? formatLKR(total()) : ''}
+            <span>💳 Charge {items.length > 0 ? formatLKR(total()) : ''}</span>
+            {items.length > 0 && (
+              <span className="text-xs font-normal opacity-85 bg-blue-700/80 px-2 py-0.5 rounded-md border border-blue-400/40">
+                Enter ↵
+              </span>
+            )}
           </button>
         </div>
       </div>
