@@ -213,6 +213,7 @@ export default function StockInModal({
                 step="any"
                 required
                 value={quantity}
+                onFocus={(e) => e.target.select()}
                 onChange={(e) => setQuantity(e.target.value)}
                 placeholder="e.g. 24"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 font-bold text-emerald-700 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
@@ -290,6 +291,7 @@ export default function StockInModal({
                   min="0"
                   step="any"
                   value={costPrice}
+                  onFocus={(e) => e.target.select()}
                   onChange={(e) => setCostPrice(e.target.value)}
                   placeholder="0.00"
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-xs font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-400"
@@ -308,6 +310,7 @@ export default function StockInModal({
                   min="0"
                   step="any"
                   value={sellingPrice}
+                  onFocus={(e) => e.target.select()}
                   onChange={(e) => setSellingPrice(e.target.value)}
                   placeholder="0.00"
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-xs font-black text-blue-600 focus:outline-none focus:ring-2 focus:ring-emerald-400"

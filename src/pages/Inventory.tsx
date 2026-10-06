@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
   Plus, Search, Edit2, Trash2, AlertTriangle, Barcode, X, RefreshCw, Lock, Tags,
   PackagePlus, Layers, Calendar, Clock, CheckCircle
@@ -25,9 +25,22 @@ export default function Inventory() {
   const [batchHistoryProduct, setBatchHistoryProduct] = useState<Product | null>(null);
   const [editing, setEditing] = useState<Product | null>(null);
   const [selectedBarcodeProduct, setSelectedBarcodeProduct] = useState<Product | null>(null);
-  const [form, setForm] = useState({
-    name: '', barcode: '', category_id: 1, price: 0,
-    cost_price: 0, stock: 0, low_stock_alert: 10, unit: 'pcs', description: '',
+  const modalFormRef = useRef<HTMLDivElement>(null);
+  const saveButtonRef = useRef<HTMLButtonElement>(null);
+
+  const [form, setForm] = useState<{
+    name: string;
+    barcode: string;
+    category_id: number;
+    price: number | '';
+    cost_price: number | '';
+    stock: number | '';
+    low_stock_alert: number | '';
+    unit: string;
+    description: string;
+  }>({
+    name: '', barcode: '', category_id: 1, price: '',
+    cost_price: '', stock: '', low_stock_alert: 10, unit: 'pcs', description: '',
   });
 
   const load = async () => {
@@ -64,10 +77,21 @@ export default function Inventory() {
 
   const handleSave = async () => {
     if (!form.name.trim()) { alert('Product name is required'); return; }
+    const payload = {
+      name: form.name.trim(),
+      barcode: form.barcode.trim() || undefined,
+      category_id: form.category_id || 1,
+      price: form.price === '' ? 0 : Number(form.price),
+      cost_price: form.cost_price === '' ? 0 : Number(form.cost_price),
+      stock: form.stock === '' ? 0 : Number(form.stock),
+      low_stock_alert: form.low_stock_alert === '' ? 10 : Number(form.low_stock_alert),
+      unit: form.unit || 'pcs',
+      description: form.description || '',
+    };
     if (editing) {
-      await window.api.updateProduct(editing.id, form as any);
+      await window.api.updateProduct(editing.id, payload as any);
     } else {
-      await window.api.createProduct(form as any);
+      await window.api.createProduct(payload as any);
     }
     closeForm();
     load();
@@ -76,17 +100,75 @@ export default function Inventory() {
   const closeForm = () => {
     setShowForm(false);
     setEditing(null);
-    setForm({ name: '', barcode: '', category_id: 1, price: 0, cost_price: 0, stock: 0, low_stock_alert: 10, unit: 'pcs', description: '' });
+    setForm({
+      name: '',
+      barcode: '',
+      category_id: 1,
+      price: '',
+      cost_price: '',
+      stock: '',
+      low_stock_alert: 10,
+      unit: 'pcs',
+      description: '',
+    });
   };
 
   const handleEdit = (p: Product) => {
     setEditing(p);
     setForm({
-      name: p.name, barcode: p.barcode || '', category_id: p.category_id || 1,
-      price: p.price, cost_price: p.cost_price, stock: p.stock,
-      low_stock_alert: p.low_stock_alert, unit: p.unit, description: p.description || '',
+      name: p.name,
+      barcode: p.barcode || '',
+      category_id: p.category_id || 1,
+      price: p.price,
+      cost_price: p.cost_price,
+      stock: p.stock,
+      low_stock_alert: p.low_stock_alert,
+      unit: p.unit,
+      description: p.description || '',
     });
     setShowForm(true);
+  };
+
+  // Keyboard navigation across modal fields using ArrowDown, ArrowUp, and Enter
+  const handleModalKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    // If in textarea, allow normal Enter/arrows
+    if ((e.target as HTMLElement).tagName === 'TEXTAREA') {
+      return;
+    }
+
+    if (e.key === 'ArrowDown' || (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'BUTTON')) {
+      e.preventDefault();
+      const container = modalFormRef.current;
+      if (!container) return;
+      const focusable = Array.from(
+        container.querySelectorAll<HTMLElement>(
+          'input:not([disabled]), select:not([disabled]), textarea:not([disabled])'
+        )
+      );
+      const index = focusable.indexOf(e.target as HTMLElement);
+      if (index !== -1 && index < focusable.length - 1) {
+        const nextEl = focusable[index + 1];
+        nextEl.focus();
+        if (nextEl instanceof HTMLInputElement) nextEl.select();
+      } else if (index === focusable.length - 1) {
+        saveButtonRef.current?.focus();
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const container = modalFormRef.current;
+      if (!container) return;
+      const focusable = Array.from(
+        container.querySelectorAll<HTMLElement>(
+          'input:not([disabled]), select:not([disabled]), textarea:not([disabled])'
+        )
+      );
+      const index = focusable.indexOf(e.target as HTMLElement);
+      if (index > 0) {
+        const prevEl = focusable[index - 1];
+        prevEl.focus();
+        if (prevEl instanceof HTMLInputElement) prevEl.select();
+      }
+    }
   };
 
   const handleDelete = async (id: number) => {
@@ -327,18 +409,36 @@ export default function Inventory() {
               <h2 className="font-bold text-lg text-gray-800">{editing ? 'Edit Product' : 'Add New Product'}</h2>
               <button onClick={closeForm} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
             </div>
-            <div className="p-5 overflow-auto">
+            <div ref={modalFormRef} onKeyDown={handleModalKeyDown} className="p-5 overflow-auto">
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <label className="text-xs font-semibold text-gray-500 mb-1.5 block">PRODUCT NAME *</label>
-                  <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="w-full border-2 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400" placeholder="e.g. Coca Cola 500ml" />
+                  <input
+                    autoFocus
+                    value={form.name}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                    className="w-full border-2 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400"
+                    placeholder="e.g. White Sugar / Seeni 1kg"
+                  />
                 </div>
 
                 <div className="col-span-2">
                   <label className="text-xs font-semibold text-gray-500 mb-1.5 block">BARCODE</label>
                   <div className="flex gap-2">
-                    <input value={form.barcode} onChange={(e) => setForm((f) => ({ ...f, barcode: e.target.value }))} className="flex-1 border-2 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 font-mono" placeholder="Scan or enter barcode" />
-                    <button onClick={generateBarcode} title="Generate barcode" className="px-3 py-2.5 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors">
+                    <input
+                      value={form.barcode}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setForm((f) => ({ ...f, barcode: e.target.value }))}
+                      className="flex-1 border-2 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 font-mono"
+                      placeholder="Scan or enter barcode"
+                    />
+                    <button
+                      type="button"
+                      onClick={generateBarcode}
+                      title="Generate barcode"
+                      className="px-3 py-2.5 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors cursor-pointer"
+                    >
                       <RefreshCw size={16} />
                     </button>
                   </div>
@@ -346,27 +446,67 @@ export default function Inventory() {
 
                 <div className={canViewCost ? "" : "col-span-2"}>
                   <label className="text-xs font-semibold text-gray-500 mb-1.5 block">SELLING PRICE (LKR) *</label>
-                  <input type="number" value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: Number(e.target.value) }))} className="w-full border-2 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400" min={0} />
+                  <input
+                    type="number"
+                    step="any"
+                    min={0}
+                    value={form.price}
+                    placeholder="0.00"
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setForm((f) => ({ ...f, price: e.target.value === '' ? '' : Number(e.target.value) }))}
+                    className="w-full border-2 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 font-medium"
+                  />
                 </div>
                 {canViewCost && (
                   <div>
                     <label className="text-xs font-semibold text-gray-500 mb-1.5 block">COST PRICE (LKR)</label>
-                    <input type="number" value={form.cost_price} onChange={(e) => setForm((f) => ({ ...f, cost_price: Number(e.target.value) }))} className="w-full border-2 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400" min={0} />
+                    <input
+                      type="number"
+                      step="any"
+                      min={0}
+                      value={form.cost_price}
+                      placeholder="0.00"
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setForm((f) => ({ ...f, cost_price: e.target.value === '' ? '' : Number(e.target.value) }))}
+                      className="w-full border-2 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 font-medium"
+                    />
                   </div>
                 )}
 
                 <div>
                   <label className="text-xs font-semibold text-gray-500 mb-1.5 block">STOCK QUANTITY</label>
-                  <input type="number" value={form.stock} onChange={(e) => setForm((f) => ({ ...f, stock: Number(e.target.value) }))} className="w-full border-2 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400" min={0} />
+                  <input
+                    type="number"
+                    step="any"
+                    min={0}
+                    value={form.stock}
+                    placeholder="0"
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value === '' ? '' : Number(e.target.value) }))}
+                    className="w-full border-2 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 font-medium"
+                  />
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-gray-500 mb-1.5 block">LOW STOCK ALERT</label>
-                  <input type="number" value={form.low_stock_alert} onChange={(e) => setForm((f) => ({ ...f, low_stock_alert: Number(e.target.value) }))} className="w-full border-2 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400" min={0} />
+                  <input
+                    type="number"
+                    step="any"
+                    min={0}
+                    value={form.low_stock_alert}
+                    placeholder="10"
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setForm((f) => ({ ...f, low_stock_alert: e.target.value === '' ? '' : Number(e.target.value) }))}
+                    className="w-full border-2 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 font-medium"
+                  />
                 </div>
 
                 <div>
                   <label className="text-xs font-semibold text-gray-500 mb-1.5 block">UNIT</label>
-                  <select value={form.unit} onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))} className="w-full border-2 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400">
+                  <select
+                    value={form.unit}
+                    onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))}
+                    className="w-full border-2 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 cursor-pointer bg-white"
+                  >
                     {['pcs', 'kg', 'g', 'l', 'ml', 'box', 'pack', 'dozen', 'pair'].map((u) => <option key={u} value={u}>{u}</option>)}
                   </select>
                 </div>
@@ -381,29 +521,43 @@ export default function Inventory() {
                       <Plus size={12} /> New
                     </button>
                   </div>
-                  <select value={form.category_id} onChange={(e) => setForm((f) => ({ ...f, category_id: Number(e.target.value) }))} className="w-full border-2 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400">
+                  <select
+                    value={form.category_id}
+                    onChange={(e) => setForm((f) => ({ ...f, category_id: Number(e.target.value) }))}
+                    className="w-full border-2 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 cursor-pointer bg-white"
+                  >
                     {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
 
                 <div className="col-span-2">
                   <label className="text-xs font-semibold text-gray-500 mb-1.5 block">DESCRIPTION (optional)</label>
-                  <input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} className="w-full border-2 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400" placeholder="Short description" />
+                  <input
+                    value={form.description}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                    className="w-full border-2 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400"
+                    placeholder="Short description"
+                  />
                 </div>
               </div>
 
               {/* Profit preview */}
-              {form.price > 0 && form.cost_price > 0 && (
+              {(Number(form.price) || 0) > 0 && (Number(form.cost_price) || 0) > 0 && (
                 <div className="mt-3 p-3 bg-green-50 rounded-xl text-sm">
                   <span className="text-green-700 font-medium">
-                    Profit: LKR {(form.price - form.cost_price).toFixed(2)} ({(((form.price - form.cost_price) / form.price) * 100).toFixed(1)}% margin)
+                    Profit: LKR {((Number(form.price) || 0) - (Number(form.cost_price) || 0)).toFixed(2)} ({((((Number(form.price) || 0) - (Number(form.cost_price) || 0)) / (Number(form.price) || 1)) * 100).toFixed(1)}% margin)
                   </span>
                 </div>
               )}
             </div>
             <div className="flex gap-3 p-5 border-t">
-              <button onClick={closeForm} className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50">Cancel</button>
-              <button onClick={handleSave} className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 shadow-md shadow-blue-200">
+              <button onClick={closeForm} className="flex-1 py-2.5 border-2 border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 cursor-pointer">Cancel</button>
+              <button
+                ref={saveButtonRef}
+                onClick={handleSave}
+                className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 shadow-md shadow-blue-200 cursor-pointer"
+              >
                 {editing ? 'Update Product' : 'Add Product'}
               </button>
             </div>
