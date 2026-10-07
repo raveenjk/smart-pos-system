@@ -3,6 +3,8 @@ import {
   getLicenseStatus,
   activateLicense,
   getMachineId,
+  generateLicenseKey,
+  renewMonthlyLicense,
   startTrial,
   extendTrial,
   endTrial,
@@ -20,6 +22,14 @@ export function registerLicenseHandlers() {
 
   ipcMain.handle('license:activate', (_event, licenseKey: string) => {
     return activateLicense(licenseKey);
+  });
+
+  ipcMain.handle('license:renewMonthly', (_event, days?: number) => {
+    return renewMonthlyLicense(days);
+  });
+
+  ipcMain.handle('license:generateKey', (_event, machineId: string, tier: 'LIFETIME' | 'ANNUAL' | 'MONTHLY') => {
+    return generateLicenseKey(machineId, tier);
   });
 
   ipcMain.handle('license:startTrial', (_event, days: number) => {

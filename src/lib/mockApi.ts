@@ -791,7 +791,20 @@ export function setupBrowserMockApi() {
       message: 'Browser demo preview active!',
     }),
     getMachineId: async () => 'DEMO-BROWSER-PREVIEW',
-    activateLicense: async () => ({ success: true, message: 'Browser demo preview active!' }),
+    activateLicense: async (key: string) => ({
+      success: true,
+      message: key.startsWith('POS-MNTH')
+        ? 'Monthly License activated for 30 Days!'
+        : 'License activated successfully!',
+    }),
+    renewMonthlyLicense: async (days: number = 30) => ({
+      success: true,
+      message: `Monthly License renewed for +${days} days!`,
+    }),
+    generateLicenseKey: async (machineId: string, tier: 'LIFETIME' | 'ANNUAL' | 'MONTHLY') => {
+      const prefix = tier === 'MONTHLY' ? 'MNTH' : tier === 'ANNUAL' ? 'ANNU' : 'LIFE';
+      return `POS-${prefix}-${machineId.slice(0, 6)}-DEMO1234`;
+    },
     startTrial: async (days: number) => ({ success: true, message: `Mock trial of ${days} days started!` }),
     extendTrial: async (days: number) => ({ success: true, message: `Mock trial extended by ${days} days!` }),
     endTrial: async () => ({ success: true, message: 'Mock trial ended!' }),

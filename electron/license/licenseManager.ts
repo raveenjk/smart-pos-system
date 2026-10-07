@@ -17,12 +17,13 @@ export interface LicenseStatus {
   isActivated: boolean;
   isTrial: boolean;
   isExpired: boolean;
-  tier: string; // 'LIFETIME' | 'ANNUAL' | 'TRIAL' | 'NONE'
+  tier: string; // 'LIFETIME' | 'ANNUAL' | 'MONTHLY' | 'TRIAL' | 'NONE'
   machineId: string;
   licenseKey: string;
   daysLeft: number;
   trialStart: string | null;
   trialEnd: string | null;
+  expiresAt?: string | null;
   whatsappNumber: string;
   hotline: string;
   message: string;
@@ -58,15 +59,22 @@ export function getMachineId(): string {
   }
 }
 
-export function generateLicenseKey(machineId: string, tier: 'LIFETIME' | 'ANNUAL' = 'LIFETIME'): string {
+export function generateLicenseKey(
+  machineId: string,
+  tier: 'LIFETIME' | 'ANNUAL' | 'MONTHLY' = 'LIFETIME'
+): string {
   const cleanId = machineId.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+  const tierPrefix = tier === 'MONTHLY' ? 'MNTH' : tier === 'ANNUAL' ? 'ANNU' : 'LIFE';
   const payload = `${cleanId}:${tier}`;
   const hmac = crypto.createHmac('sha256', LICENSE_SECRET).update(payload).digest('hex').toUpperCase();
   const signature = hmac.slice(0, 8);
-  return `POS-${tier.slice(0, 4)}-${cleanId.slice(0, 6)}-${signature}`;
+  return `POS-${tierPrefix}-${cleanId.slice(0, 6)}-${signature}`;
 }
 
-export function verifyLicenseKey(key: string, machineId: string): { valid: boolean; tier?: string; error?: string } {
+export function verifyLicenseKey(
+  key: string,
+  machineId: string
+): { valid: boolean; tier?: 'LIFETIME' | 'ANNUAL' | 'MONTHLY'; error?: string } {
   if (!key || typeof key !== 'string') {
     return { valid: false, error: 'License key is required' };
   }
@@ -77,7 +85,11 @@ export function verifyLicenseKey(key: string, machineId: string): { valid: boole
   }
 
   const [_, tierPrefix, midPrefix, signature] = parts;
-  const tier = tierPrefix === 'LIFE' ? 'LIFETIME' : tierPrefix === 'ANNU' ? 'ANNUAL' : null;
+  let tier: 'LIFETIME' | 'ANNUAL' | 'MONTHLY' | null = null;
+  if (tierPrefix === 'LIFE') tier = 'LIFETIME';
+  else if (tierPrefix === 'ANNU') tier = 'ANNUAL';
+  else if (tierPrefix === 'MNTH') tier = 'MONTHLY';
+
   if (!tier) {
     return { valid: false, error: 'Unrecognized license tier' };
   }
@@ -87,7 +99,7 @@ export function verifyLicenseKey(key: string, machineId: string): { valid: boole
     return { valid: false, error: 'This license key is not issued for this computer hardware' };
   }
 
-  const expectedKey = generateLicenseKey(machineId, tier as any);
+  const expectedKey = generateLicenseKey(machineId, tier);
   if (expectedKey.toUpperCase() === key.trim().toUpperCase()) {
     return { valid: true, tier };
   }
@@ -98,6 +110,12 @@ export function verifyLicenseKey(key: string, machineId: string): { valid: boole
 function computeTrialSignature(machineId: string, start: string, end: string, days: number): string {
   const cleanId = machineId.replace(/[^A-Z0-9]/gi, '').toUpperCase();
   const payload = `TRIAL:${cleanId}:${start}:${end}:${days}`;
+  return crypto.createHmac('sha256', LICENSE_SECRET).update(payload).digest('hex').toUpperCase();
+}
+
+function computeSubscriptionSignature(machineId: string, tier: string, expiresAt: string): string {
+  const cleanId = machineId.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+  const payload = `SUBSCRIPTION:${cleanId}:${tier}:${expiresAt}`;
   return crypto.createHmac('sha256', LICENSE_SECRET).update(payload).digest('hex').toUpperCase();
 }
 
@@ -139,25 +157,123 @@ export function getLicenseStatus(): LicenseStatus {
   const licenseKey = getStoredSetting('license_key', '');
   const isMarkedActive = getStoredSetting('license_activated', 'false') === 'true';
 
-  // 1. Check Full License Key first
+  // 1. Check Full / Subscription License Key first
   if (licenseKey && isMarkedActive) {
     const check = verifyLicenseKey(licenseKey, machineId);
-    if (check.valid) {
-      return {
-        status: 'ACTIVE',
-        isActivated: true,
-        isTrial: false,
-        isExpired: false,
-        tier: check.tier || 'LIFETIME',
-        machineId,
-        licenseKey,
-        daysLeft: 9999,
-        trialStart: null,
-        trialEnd: null,
-        whatsappNumber: VENDOR_WHATSAPP,
-        hotline: VENDOR_HOTLINE,
-        message: 'System fully licensed and active.',
-      };
+    if (check.valid && check.tier) {
+      const tier = check.tier;
+
+      if (tier === 'LIFETIME') {
+        return {
+          status: 'ACTIVE',
+          isActivated: true,
+          isTrial: false,
+          isExpired: false,
+          tier: 'LIFETIME',
+          machineId,
+          licenseKey,
+          daysLeft: 9999,
+          trialStart: null,
+          trialEnd: null,
+          expiresAt: null,
+          whatsappNumber: VENDOR_WHATSAPP,
+          hotline: VENDOR_HOTLINE,
+          message: 'System fully licensed and active (Lifetime).',
+        };
+      }
+
+      // Check subscription (MONTHLY or ANNUAL)
+      const expiresAt = getStoredSetting('license_expires_at', '');
+      const expirySig = getStoredSetting('license_expiry_sig', '');
+
+      if (expiresAt && expirySig) {
+        const expectedSig = computeSubscriptionSignature(machineId, tier, expiresAt);
+        if (expirySig !== expectedSig) {
+          return {
+            status: 'TAMPERED',
+            isActivated: false,
+            isTrial: false,
+            isExpired: true,
+            tier: 'TAMPERED',
+            machineId,
+            licenseKey,
+            daysLeft: 0,
+            trialStart: null,
+            trialEnd: expiresAt,
+            expiresAt,
+            whatsappNumber: VENDOR_WHATSAPP,
+            hotline: VENDOR_HOTLINE,
+            message: 'Security verification failed: License expiry tampering detected.',
+          };
+        }
+
+        // Anti-clock rollback check
+        const now = Date.now();
+        const lastClockStr = getStoredSetting('last_known_clock', '');
+        if (lastClockStr) {
+          const lastClock = new Date(lastClockStr).getTime();
+          if (now < lastClock - 15 * 60 * 1000) {
+            return {
+              status: 'TAMPERED',
+              isActivated: false,
+              isTrial: false,
+              isExpired: true,
+              tier: 'TAMPERED',
+              machineId,
+              licenseKey,
+              daysLeft: 0,
+              trialStart: null,
+              trialEnd: expiresAt,
+              expiresAt,
+              whatsappNumber: VENDOR_WHATSAPP,
+              hotline: VENDOR_HOTLINE,
+              message: 'System clock rollback detected. Please restore correct system time or contact vendor.',
+            };
+          }
+        }
+        setStoredSetting('last_known_clock', new Date().toISOString());
+
+        const expMs = new Date(expiresAt).getTime();
+        if (now > expMs) {
+          // Subscription Expired!
+          return {
+            status: 'TRIAL_EXPIRED',
+            isActivated: false,
+            isTrial: false,
+            isExpired: true,
+            tier,
+            machineId,
+            licenseKey,
+            daysLeft: 0,
+            trialStart: null,
+            trialEnd: expiresAt,
+            expiresAt,
+            whatsappNumber: VENDOR_WHATSAPP,
+            hotline: VENDOR_HOTLINE,
+            message: `${tier === 'MONTHLY' ? 'Monthly' : 'Annual'} license has expired. Please renew your subscription to continue.`,
+          };
+        }
+
+        // Subscription currently active
+        const diffMs = expMs - now;
+        const daysLeft = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+        return {
+          status: 'ACTIVE',
+          isActivated: true,
+          isTrial: false,
+          isExpired: false,
+          tier,
+          machineId,
+          licenseKey,
+          daysLeft,
+          trialStart: null,
+          trialEnd: expiresAt,
+          expiresAt,
+          whatsappNumber: VENDOR_WHATSAPP,
+          hotline: VENDOR_HOTLINE,
+          message: `${tier === 'MONTHLY' ? 'Monthly' : 'Annual'} license active: ${daysLeft} day(s) remaining (Expires on ${new Date(expiresAt).toLocaleDateString()}).`,
+        };
+      }
     }
   }
 
@@ -372,7 +488,7 @@ export function activateLicense(licenseKey: string): { success: boolean; message
   const machineId = getMachineId();
   const result = verifyLicenseKey(licenseKey, machineId);
 
-  if (!result.valid) {
+  if (!result.valid || !result.tier) {
     return {
       success: false,
       message: result.error || 'Activation failed',
@@ -380,17 +496,80 @@ export function activateLicense(licenseKey: string): { success: boolean; message
     };
   }
 
+  const tier = result.tier;
   setStoredSetting('license_key', licenseKey.trim().toUpperCase());
   setStoredSetting('license_activated', 'true');
+  setStoredSetting('license_tier', tier);
   // Deactivate trial mode since full license is activated
   setStoredSetting('trial_active', 'false');
+
+  if (tier === 'LIFETIME') {
+    setStoredSetting('license_expires_at', '');
+    setStoredSetting('license_expiry_sig', '');
+  } else {
+    // For MONTHLY (+30 days) or ANNUAL (+365 days)
+    const durationDays = tier === 'MONTHLY' ? 30 : 365;
+    const curExpiresStr = getStoredSetting('license_expires_at', '');
+    let baseTime = Date.now();
+    if (curExpiresStr) {
+      const curMs = new Date(curExpiresStr).getTime();
+      // If still valid, extend from current expiry date!
+      if (curMs > baseTime) {
+        baseTime = curMs;
+      }
+    }
+    const newExpiresAt = new Date(baseTime + durationDays * 24 * 60 * 60 * 1000).toISOString();
+    const sig = computeSubscriptionSignature(machineId, tier, newExpiresAt);
+    setStoredSetting('license_expires_at', newExpiresAt);
+    setStoredSetting('license_expiry_sig', sig);
+    setStoredSetting('last_known_clock', new Date().toISOString());
+  }
 
   notifyWindowsLicenseUpdate();
 
   const status = getLicenseStatus();
   return {
     success: true,
-    message: `Activated successfully as ${result.tier} License!`,
+    message: tier === 'LIFETIME'
+      ? 'Activated successfully as Lifetime License!'
+      : tier === 'MONTHLY'
+      ? `Activated / Renewed successfully for 1 Month (Expires: ${new Date(status.expiresAt || '').toLocaleDateString()})!`
+      : `Activated successfully as 1-Year Annual License (Expires: ${new Date(status.expiresAt || '').toLocaleDateString()})!`,
+    status,
+  };
+}
+
+export function renewMonthlyLicense(days: number = 30): { success: boolean; message: string; status: LicenseStatus } {
+  const machineId = getMachineId();
+  const validDays = Math.max(1, Math.min(365, Math.floor(days || 30)));
+  const monthlyKey = generateLicenseKey(machineId, 'MONTHLY');
+
+  const curExpiresStr = getStoredSetting('license_expires_at', '');
+  let baseTime = Date.now();
+  if (curExpiresStr) {
+    const curMs = new Date(curExpiresStr).getTime();
+    if (curMs > baseTime) {
+      baseTime = curMs; // Extend from current expiry!
+    }
+  }
+
+  const newExpiresAt = new Date(baseTime + validDays * 24 * 60 * 60 * 1000).toISOString();
+  const sig = computeSubscriptionSignature(machineId, 'MONTHLY', newExpiresAt);
+
+  setStoredSetting('license_key', monthlyKey);
+  setStoredSetting('license_activated', 'true');
+  setStoredSetting('license_tier', 'MONTHLY');
+  setStoredSetting('license_expires_at', newExpiresAt);
+  setStoredSetting('license_expiry_sig', sig);
+  setStoredSetting('trial_active', 'false');
+  setStoredSetting('last_known_clock', new Date().toISOString());
+
+  notifyWindowsLicenseUpdate();
+
+  const status = getLicenseStatus();
+  return {
+    success: true,
+    message: `Monthly License renewed by +${validDays} days! New expiry: ${new Date(newExpiresAt).toLocaleDateString()}.`,
     status,
   };
 }
@@ -398,6 +577,9 @@ export function activateLicense(licenseKey: string): { success: boolean; message
 export function deactivateLicense(): { success: boolean; message: string; status: LicenseStatus } {
   setStoredSetting('license_key', '');
   setStoredSetting('license_activated', 'false');
+  setStoredSetting('license_tier', '');
+  setStoredSetting('license_expires_at', '');
+  setStoredSetting('license_expiry_sig', '');
   setStoredSetting('trial_active', 'false');
   setStoredSetting('trial_start', '');
   setStoredSetting('trial_end', '');

@@ -77,6 +77,8 @@ contextBridge.exposeInMainWorld('api', {
   getLicenseStatus: () => ipcRenderer.invoke('license:getStatus'),
   getMachineId: () => ipcRenderer.invoke('license:getMachineId'),
   activateLicense: (key: string) => ipcRenderer.invoke('license:activate', key),
+  renewMonthlyLicense: (days?: number) => ipcRenderer.invoke('license:renewMonthly', days),
+  generateLicenseKey: (machineId: string, tier: 'LIFETIME' | 'ANNUAL' | 'MONTHLY') => ipcRenderer.invoke('license:generateKey', machineId, tier),
   startTrial: (days: number) => ipcRenderer.invoke('license:startTrial', days),
   extendTrial: (days: number) => ipcRenderer.invoke('license:extendTrial', days),
   endTrial: () => ipcRenderer.invoke('license:endTrial'),

@@ -110,6 +110,11 @@ export default function App() {
       license.status === 'TAMPERED');
 
   const isTrialActive = license && license.status === 'TRIAL_ACTIVE';
+  const isMonthlyExpiringSoon =
+    license &&
+    license.status === 'ACTIVE' &&
+    license.tier === 'MONTHLY' &&
+    license.daysLeft <= 7;
 
   const whatsappHref = `https://wa.me/94705224007?text=Hello%20Vendor,%20I%20need%20assistance%20with%20my%20POS%20system%20license.%20Machine%20ID:%20${
     license?.machineId || ''
@@ -119,7 +124,42 @@ export default function App() {
     <HashRouter>
       <div className="min-h-screen flex flex-col bg-slate-950">
         {/* ========================================================
-            1. TRIAL ACTIVE COUNTDOWN BANNER
+            1. MONTHLY LICENSE EXPIRING SOON BANNER
+           ======================================================== */}
+        {isMonthlyExpiringSoon && (
+          <aside aria-label="Monthly License Renewal Banner" className="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-800 text-white px-4 py-2 text-xs font-semibold flex items-center justify-between shadow-md shrink-0 z-40 select-none">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-2.5 w-2.5 rounded-full bg-cyan-400 animate-pulse" />
+              <span>
+                🗓️ <strong>Monthly License:</strong> {license.daysLeft}{' '}
+                {license.daysLeft === 1 ? 'day' : 'days'} remaining (Expires on{' '}
+                {license.expiresAt ? new Date(license.expiresAt).toLocaleDateString() : 'soon'})
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <a
+                href={whatsappHref}
+                target="_blank"
+                rel="noreferrer"
+                className="hover:underline hidden sm:flex items-center gap-1.5 opacity-90 hover:opacity-100"
+              >
+                <MessageSquare size={13} />
+                WhatsApp: 070 522 4007
+              </a>
+              <button
+                type="button"
+                onClick={() => setShowKeyModal(true)}
+                className="px-3 py-1 bg-white text-blue-950 font-bold rounded-lg text-[11px] shadow-xs hover:bg-blue-50 active:scale-95 transition-all flex items-center gap-1 cursor-pointer"
+              >
+                <Key size={12} />
+                Renew License
+              </button>
+            </div>
+          </aside>
+        )}
+
+        {/* ========================================================
+            1.1 TRIAL ACTIVE COUNTDOWN BANNER
            ======================================================== */}
         {isTrialActive && (
           <aside aria-label="Trial Mode Banner" className="bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white px-4 py-2 text-xs font-semibold flex items-center justify-between shadow-md shrink-0 z-40 select-none">
@@ -208,6 +248,8 @@ export default function App() {
                     ? 'Security Tamper Violation'
                     : license?.status === 'SETUP_REQUIRED'
                     ? 'License Activation Required'
+                    : license?.tier === 'MONTHLY'
+                    ? 'Monthly License Expired'
                     : 'Trial Period Expired'}
                 </h2>
 
@@ -216,6 +258,8 @@ export default function App() {
                     ? 'A system clock rollback or database modification was detected. System access has been suspended for security.'
                     : license?.status === 'SETUP_REQUIRED'
                     ? 'This POS system requires license activation or trial provisioning before it can be used.'
+                    : license?.tier === 'MONTHLY'
+                    ? 'Your monthly license subscription period has expired. Please contact your software vendor (070 522 4007) to renew your monthly license.'
                     : 'Your test run evaluation period has ended. To continue using the POS system and activate your full license, please contact your software vendor.'}
                 </p>
               </div>
@@ -289,7 +333,7 @@ export default function App() {
                       setActivationKey(e.target.value.toUpperCase());
                       setActivationError('');
                     }}
-                    placeholder="POS-LIFE-XXXXXX-XXXXXXXX"
+                    placeholder="POS-MNTH-XXXXXX-XXXXXXXX"
                     className="flex-1 bg-slate-950 border border-slate-800 focus:border-blue-500 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-mono tracking-wider text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                   />
                   <button
@@ -298,7 +342,7 @@ export default function App() {
                     className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold rounded-xl text-xs sm:text-sm shadow-md shadow-blue-600/30 active:scale-95 transition-all shrink-0 cursor-pointer flex items-center gap-1.5"
                   >
                     <Key size={14} />
-                    {isActivating ? 'Verifying...' : 'Activate'}
+                    {isActivating ? 'Verifying...' : 'Activate / Renew'}
                   </button>
                 </div>
 
@@ -331,7 +375,7 @@ export default function App() {
         )}
 
         {/* ========================================================
-            4. IN-TRIAL LICENSE ACTIVATION MODAL (WHEN USER CLICKS ACTIVATE)
+            4. IN-TRIAL / RENEWAL LICENSE ACTIVATION MODAL
            ======================================================== */}
         {showKeyModal && (
           <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -342,8 +386,12 @@ export default function App() {
                     <Key size={18} />
                   </div>
                   <div>
-                    <h3 className="font-bold text-base text-white">Activate Full License</h3>
-                    <p className="text-[11px] text-slate-400">Unlock permanent lifetime access</p>
+                    <h3 className="font-bold text-base text-white">
+                      {license?.tier === 'MONTHLY' ? 'Renew Monthly License' : 'Activate License'}
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      {license?.tier === 'MONTHLY' ? 'Extend monthly subscription by +30 days' : 'Unlock monthly or lifetime access'}
+                    </p>
                   </div>
                 </div>
                 <button

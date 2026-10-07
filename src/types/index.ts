@@ -257,6 +257,8 @@ declare global {
       getLicenseStatus: () => Promise<LicenseStatus>;
       getMachineId: () => Promise<string>;
       activateLicense: (key: string) => Promise<{ success: boolean; message: string; status?: LicenseStatus }>;
+      renewMonthlyLicense?: (days?: number) => Promise<{ success: boolean; message: string; status?: LicenseStatus }>;
+      generateLicenseKey?: (machineId: string, tier: 'LIFETIME' | 'ANNUAL' | 'MONTHLY') => Promise<string>;
       startTrial: (days: number) => Promise<{ success: boolean; message: string; status?: LicenseStatus }>;
       extendTrial: (days: number) => Promise<{ success: boolean; message: string; status?: LicenseStatus }>;
       endTrial: () => Promise<{ success: boolean; message: string; status?: LicenseStatus }>;
@@ -282,6 +284,7 @@ export interface LicenseStatus {
   daysLeft: number;
   trialStart: string | null;
   trialEnd: string | null;
+  expiresAt?: string | null;
   whatsappNumber: string;
   hotline: string;
   message: string;

@@ -18,6 +18,30 @@ import { getDb } from './database/schema';
 const isDev = process.env.NODE_ENV === 'development';
 
 let mainWindow: BrowserWindow | null = null;
+let devWindow: BrowserWindow | null = null;
+
+function openDeveloperWindow() {
+  const port = getDeveloperServerPort();
+  const targetUrl = `http://127.0.0.1:${port}/developer`;
+  if (devWindow && !devWindow.isDestroyed()) {
+    devWindow.focus();
+    return;
+  }
+  devWindow = new BrowserWindow({
+    width: 1120,
+    height: 820,
+    title: 'Smart POS — Super Admin Console',
+    autoHideMenuBar: true,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+  devWindow.loadURL(targetUrl);
+  devWindow.on('closed', () => {
+    devWindow = null;
+  });
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -52,7 +76,8 @@ function createWindow() {
     }
     // Secret developer shortcut: Ctrl + Alt + D
     if (input.control && input.alt && input.key.toLowerCase() === 'd') {
-      shell.openExternal(`http://localhost:${getDeveloperServerPort()}/developer`);
+      openDeveloperWindow();
+      shell.openExternal(`http://127.0.0.1:${getDeveloperServerPort()}/developer`).catch(() => {});
     }
   });
 
@@ -92,7 +117,8 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.handle('system:openDeveloperPortal', () => {
-    shell.openExternal(`http://localhost:${getDeveloperServerPort()}/developer`);
+    openDeveloperWindow();
+    shell.openExternal(`http://127.0.0.1:${getDeveloperServerPort()}/developer`).catch(() => {});
     return { success: true };
   });
 
