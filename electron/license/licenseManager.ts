@@ -594,3 +594,98 @@ export function deactivateLicense(): { success: boolean; message: string; status
     status,
   };
 }
+
+/**
+ * Apply remote cloud license updates (e.g. when developer extends +30 days on web portal)
+ */
+export function applyCloudLicenseUpdate(cloudData: {
+  tier: string;
+  status: string;
+  expiresAt?: string | null;
+  licenseKey?: string | null;
+  trialStart?: string | null;
+  trialEnd?: string | null;
+}): boolean {
+  const machineId = getMachineId();
+  let changed = false;
+
+  if (cloudData.tier === 'LIFETIME') {
+    const curTier = getStoredSetting('license_tier', '');
+    const curActivated = getStoredSetting('license_activated', '') === 'true';
+    if (curTier !== 'LIFETIME' || !curActivated) {
+      const lifetimeKey = cloudData.licenseKey || generateLicenseKey(machineId, 'LIFETIME');
+      activateLicense(lifetimeKey);
+      changed = true;
+    }
+  } else if (cloudData.tier === 'MONTHLY' || cloudData.tier === 'ANNUAL') {
+    const curExpiresStr = getStoredSetting('license_expires_at', '');
+    const cloudExpiresStr = cloudData.expiresAt || '';
+    if (cloudExpiresStr && cloudExpiresStr !== curExpiresStr) {
+      const cloudMs = new Date(cloudExpiresStr).getTime();
+      const curMs = curExpiresStr ? new Date(curExpiresStr).getTime() : 0;
+      if (cloudMs > curMs) {
+        const sig = computeSubscriptionSignature(machineId, cloudData.tier, cloudExpiresStr);
+        const lKey = cloudData.licenseKey || generateLicenseKey(machineId, cloudData.tier as any);
+        setStoredSetting('license_key', lKey);
+        setStoredSetting('license_activated', 'true');
+        setStoredSetting('license_tier', cloudData.tier);
+        setStoredSetting('license_expires_at', cloudExpiresStr);
+        setStoredSetting('license_expiry_sig', sig);
+        setStoredSetting('trial_active', 'false');
+        setStoredSetting('last_known_clock', new Date().toISOString());
+        notifyWindowsLicenseUpdate();
+        changed = true;
+      }
+    }
+  } else if (cloudData.tier === 'TRIAL' || cloudData.status === 'TRIAL_ACTIVE') {
+    const curTrialEnd = getStoredSetting('trial_end', '');
+    const cloudTrialEnd = cloudData.trialEnd || '';
+    if (cloudTrialEnd && cloudTrialEnd !== curTrialEnd) {
+      const cloudMs = new Date(cloudTrialEnd).getTime();
+      const curMs = curTrialEnd ? new Date(curTrialEnd).getTime() : 0;
+      if (cloudMs > curMs) {
+        const start = cloudData.trialStart || getStoredSetting('trial_start', new Date().toISOString());
+        const totalDays = Math.max(1, Math.ceil((cloudMs - new Date(start).getTime()) / (1000 * 60 * 60 * 24)));
+        const sig = computeTrialSignature(machineId, start, cloudTrialEnd, totalDays);
+        setStoredSetting('trial_active', 'true');
+        setStoredSetting('trial_start', start);
+        setStoredSetting('trial_end', cloudTrialEnd);
+        setStoredSetting('trial_days', String(totalDays));
+        setStoredSetting('trial_signature', sig);
+        notifyWindowsLicenseUpdate();
+        changed = true;
+      }
+    }
+  }
+
+  return changed;
+}
+
+/**
+ * Apply remote maintenance / shop lockout mode from developer cloud portal
+ */
+export function applyRemoteMaintenanceState(remoteMaint: { active: boolean; message?: string }): boolean {
+  const currentActive = getStoredSetting('maintenance_mode', 'false') === 'true';
+  const currentMsg = getStoredSetting('maintenance_message', '');
+  const newActive = Boolean(remoteMaint.active);
+  const newMsg = remoteMaint.message || 'System maintenance in progress. Please contact software vendor (070 522 4007).';
+
+  let changed = false;
+  if (currentActive !== newActive) {
+    setStoredSetting('maintenance_mode', String(newActive));
+    changed = true;
+  }
+  if (currentMsg !== newMsg) {
+    setStoredSetting('maintenance_message', newMsg);
+    changed = true;
+  }
+
+  if (changed) {
+    notifyWindowsLicenseUpdate();
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send('system:maintenanceUpdate', { active: newActive, message: newMsg });
+    });
+  }
+
+  return changed;
+}

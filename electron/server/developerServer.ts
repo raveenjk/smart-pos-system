@@ -155,6 +155,21 @@ export function startDeveloperServer(preferredPort: number = 4800): Promise<numb
         return;
       }
 
+      // 1.5 Serve Central Multi-Shop Cloud Master Console
+      if (pathname === '/cloud-admin' || pathname === '/master') {
+        const portalPath = fs.existsSync(path.join(process.cwd(), 'developer-portal/index.html'))
+          ? path.join(process.cwd(), 'developer-portal/index.html')
+          : path.join(__dirname, '../../developer-portal/index.html');
+        if (fs.existsSync(portalPath)) {
+          res.writeHead(200, {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+          });
+          res.end(fs.readFileSync(portalPath, 'utf-8'));
+          return;
+        }
+      }
+
       // 2. Authentication: POST /api/login
       if (pathname === '/api/login' && req.method === 'POST') {
         const body = await parseBody(req);
@@ -631,6 +646,7 @@ function renderDeveloperPortalHTML(port: number): string {
         </div>
       </div>
       <div id="headerAuth" style="display:flex; align-items:center; gap:12px;">
+        <a href="/cloud-admin" target="_blank" class="btn btn-secondary" style="padding:6px 12px; font-size:11px; border-color:#a855f7; color:#c084fc; text-decoration:none;">☁️ Multi-Shop Cloud Master</a>
         <span id="userEmailSpan" style="font-size:12px; color:var(--text-muted);"></span>
         <button id="logoutBtn" class="btn btn-secondary" style="padding:7px 14px; font-size:12px; display:none;" onclick="logout()">Logout</button>
       </div>

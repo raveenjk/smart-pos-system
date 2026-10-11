@@ -11,7 +11,7 @@ import { registerBarcodeHandlers } from './ipc/barcodeHandlers';
 import { registerHoldHandlers } from './ipc/holdHandlers';
 import { registerLicenseHandlers } from './ipc/licenseHandlers';
 import { registerStockHandlers } from './ipc/stockHandlers';
-import { startSyncEngine } from './sync/syncEngine';
+import { startSyncEngine, syncCloudLicense } from './sync/syncEngine';
 import { startDeveloperServer, getDeveloperServerPort } from './server/developerServer';
 import { getDb } from './database/schema';
 
@@ -120,6 +120,11 @@ app.whenReady().then(async () => {
     openDeveloperWindow();
     shell.openExternal(`http://127.0.0.1:${getDeveloperServerPort()}/developer`).catch(() => {});
     return { success: true };
+  });
+
+  ipcMain.handle('system:syncCloudLicense', async () => {
+    const success = await syncCloudLicense();
+    return { success };
   });
 
   createWindow();

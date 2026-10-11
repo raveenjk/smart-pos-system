@@ -66,17 +66,27 @@ CREATE TABLE IF NOT EXISTS public.sales (
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
--- 5. Licenses Table (For Multi-Shop License Control)
+-- 5. Central Shop Licenses & Hardware Monitoring Table
 CREATE TABLE IF NOT EXISTS public.shop_licenses (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    shop_name TEXT NOT NULL,
-    license_key TEXT NOT NULL UNIQUE,
-    machine_id TEXT,
-    status TEXT DEFAULT 'active', -- active, suspended, expired
-    tier TEXT DEFAULT 'standard',  -- basic, standard, pro
-    activated_at TIMESTAMPTZ,
-    expires_at TIMESTAMPTZ,        -- NULL for lifetime one-time fee
-    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
+    machine_id TEXT NOT NULL UNIQUE,
+    shop_name TEXT NOT NULL DEFAULT 'My POS Shop',
+    owner_name TEXT,
+    owner_phone TEXT,
+    city TEXT,
+    license_tier TEXT NOT NULL DEFAULT 'TRIAL', -- 'TRIAL', 'MONTHLY', 'ANNUAL', 'LIFETIME', 'UNREGISTERED'
+    license_status TEXT NOT NULL DEFAULT 'TRIAL_ACTIVE', -- 'ACTIVE', 'TRIAL_ACTIVE', 'TRIAL_EXPIRED', 'LOCKED'
+    license_key TEXT,
+    expires_at TIMESTAMPTZ,
+    trial_start TIMESTAMPTZ,
+    trial_end TIMESTAMPTZ,
+    maintenance_mode BOOLEAN NOT NULL DEFAULT false,
+    maintenance_message TEXT DEFAULT 'System maintenance in progress. Please contact software vendor (070 522 4007).',
+    last_heartbeat_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()),
+    client_app_version TEXT DEFAULT '1.0.0',
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
 -- Row Level Security (RLS) policies
@@ -91,8 +101,9 @@ CREATE POLICY "Allow all operations for anon" ON public.categories FOR ALL USING
 CREATE POLICY "Allow all operations for anon" ON public.products FOR ALL USING (true);
 CREATE POLICY "Allow all operations for anon" ON public.customers FOR ALL USING (true);
 CREATE POLICY "Allow all operations for anon" ON public.sales FOR ALL USING (true);
-CREATE POLICY "Allow select on shop_licenses" ON public.shop_licenses FOR SELECT USING (true);
+CREATE POLICY "Allow all operations on shop_licenses" ON public.shop_licenses FOR ALL USING (true);
 
--- Enable Realtime for sales and products (so mobile app gets live updates!)
+-- Enable Realtime for sales, products, and remote licenses (instant live unlock!)
 ALTER PUBLICATION supabase_realtime ADD TABLE public.sales;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.products;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.shop_licenses;

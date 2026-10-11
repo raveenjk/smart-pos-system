@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart POS — Cloud License Master Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <!-- Supabase CDN Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg: #070b14;
+      --card: #0f172a;
+      --card-hover: #1e293b;
+      --border: #1e293b;
+      --border-accent: #334155;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --emerald: #10b981;
+      --amber: #f59e0b;
+      --rose: #ef4444;
+      --purple: #a855f7;
+      --cyan: #06b6d4;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background-color: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+    code, pre, .font-mono { font-family: 'JetBrains Mono', monospace; }
+    
+    .container { max-width: 1280px; margin: 0 auto; width: 100%; padding: 20px 16px; }
+    .glass-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+    
+    /* Header */
+    header { border-bottom: 1px solid var(--border); background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(16px); position: sticky; top: 0; z-index: 50; }
+    .header-content { display: flex; align-items: center; justify-content: space-between; height: 68px; }
+    .logo-badge { display: flex; align-items: center; gap: 12px; }
+    .logo-icon { width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg, #2563eb, #06b6d4); display: flex; align-items: center; justify-content: center; font-size: 20px; box-shadow: 0 4px 14px rgba(37,99,235,0.4); }
+    .badge-master { background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.3); color: #c084fc; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; text-transform: uppercase; }
+
+    /* Buttons */
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 14px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; transition: all 0.2s; text-decoration: none; }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; }
+    .btn-emerald { background: linear-gradient(135deg, #059669, #10b981); color: #fff; }
+    .btn-amber { background: linear-gradient(135deg, #d97706, #f59e0b); color: #fff; }
+    .btn-rose { background: linear-gradient(135deg, #dc2626, #ef4444); color: #fff; }
+    .btn-secondary { background: #1e293b; color: #cbd5e1; border: 1px solid var(--border-accent); }
+    .btn-secondary:hover { background: #334155; }
+    .btn-whatsapp { background: linear-gradient(135deg, #16a34a, #22c55e); color: #fff; }
+
+    /* Inputs */
+    .input-field { background: #070b14; border: 1px solid var(--border-accent); border-radius: 10px; padding: 10px 14px; color: #fff; font-size: 13px; width: 100%; outline: none; }
+    .input-field:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(59,130,246,0.25); }
+
+    /* Grid & Cards */
+    .grid-kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 24px; }
+    .kpi-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+    .kpi-val { font-size: 26px; font-weight: 800; color: #fff; margin-top: 4px; }
+    .kpi-lbl { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* Shop Cards Grid */
+    .grid-shops { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 18px; }
+    .shop-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; transition: all 0.2s; position: relative; }
+    .shop-card:hover { border-color: #3b82f6; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
+
+    /* Pills */
+    .pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 99px; font-size: 11px; font-weight: 700; }
+    .pill-green { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+    .pill-amber { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+    .pill-rose { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+    .pill-blue { background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); }
+    .pill-purple { background: rgba(168,85,247,0.15); color: #c084fc; border: 1px solid rgba(168,85,247,0.3); }
+
+    /* Toast */
+    #toast { position: fixed; bottom: 24px; right: 24px; background: #1e293b; border: 1px solid var(--border-accent); padding: 12px 20px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); display: none; align-items: center; gap: 8px; z-index: 1000; font-size: 13px; font-weight: 600; }
+
+    /* Modal */
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
+    .modal-box { background: var(--card); border: 1px solid var(--border-accent); border-radius: 20px; width: 100%; max-width: 480px; padding: 28px; box-shadow: 0 20px 40px rgba(0,0,0,0.8); }
+
+    @media (max-width: 640px) {
+      .grid-shops { grid-template-columns: 1fr; }
+      .header-content { flex-direction: column; height: auto; padding: 12px 0; gap: 10px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Toast -->
+  <div id="toast"></div>
+
+  <!-- Header -->
+  <header>
+    <div class="container header-content">
+      <div class="logo-badge">
+        <div class="logo-icon">⚡</div>
+        <div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <h1 style="font-size:17px; font-weight:800; letter-spacing:-0.3px;">Smart POS License Master</h1>
+            <span class="badge-master">Cloud Console</span>
+          </div>
+          <p style="font-size:11px; color:var(--text-muted);">Central Multi-Shop Remote Provisioning & Monitoring</p>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span id="cloudStatusPill" class="pill pill-amber">Connecting Cloud...</span>
+        <button class="btn btn-secondary" onclick="openConfigModal()">⚙️ Supabase Config</button>
+        <button class="btn btn-primary" onclick="openAddShopModal()">➕ Add / Provision Shop</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="container">
+    
+    <!-- KPI Analytics Cards -->
+    <div class="grid-kpi">
+      <div class="kpi-card">
+        <div class="kpi-lbl">TOTAL CLIENT SHOPS</div>
+        <div id="kpiTotalShops" class="kpi-val">0</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-lbl">ONLINE NOW (&lt; 1 HR)</div>
+        <div id="kpiOnlineNow" class="kpi-val" style="color:#34d399;">0</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-lbl">EXPIRING THIS WEEK</div>
+        <div id="kpiExpiringWeek" class="kpi-val" style="color:#fbbf24;">0</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-lbl">EXPIRED / LOCKED</div>
+        <div id="kpiLocked" class="kpi-val" style="color:#f87171;">0</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-lbl">EST. MONTHLY MRR (LKR)</div>
+        <div id="kpiEstMRR" class="kpi-val" style="color:#38bdf8;">Rs. 0</div>
+      </div>
+    </div>
+
+    <!-- Search & Filters -->
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px;">
+      <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:280px; max-width:420px;">
+        <input type="text" id="searchInput" class="input-field" placeholder="🔍 Search by Shop Name, Phone, City, Machine ID..." oninput="handleSearch()">
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-secondary filter-btn active" onclick="setFilter('ALL', this)">All</button>
+        <button class="btn btn-secondary filter-btn" onclick="setFilter('ACTIVE', this)">🟢 Active</button>
+        <button class="btn btn-secondary filter-btn" onclick="setFilter('EXPIRING', this)">🟡 Expiring</button>
+        <button class="btn btn-secondary filter-btn" onclick="setFilter('LOCKED', this)">🔴 Locked / Expired</button>
+        <button class="btn btn-secondary" onclick="fetchShops()">🔄 Refresh</button>
+      </div>
+    </div>
+
+    <!-- Shop Cards Grid -->
+    <div id="shopsContainer" class="grid-shops">
+      <!-- Dynamic Shop Cards rendered here -->
+    </div>
+
+    <div id="emptyState" style="display:none; text-align:center; padding:60px 20px;" class="glass-card">
+      <div style="font-size:40px; margin-bottom:12px;">🏪</div>
+      <h3 style="font-size:17px; font-weight:800;">No Shop Licenses Found</h3>
+      <p style="font-size:13px; color:var(--text-muted); margin-top:4px;">When client POS machines connect to internet, they will automatically register here!</p>
+      <button class="btn btn-primary" style="margin-top:16px;" onclick="openAddShopModal()">Provision First Shop</button>
+    </div>
+
+  </main>
+
+  <!-- Modal 1: Supabase Configuration -->
+  <div id="configModal" class="modal-backdrop">
+    <div class="modal-box">
+      <h3 style="font-size:18px; font-weight:800; margin-bottom:6px;">☁️ Supabase Cloud Credentials</h3>
+      <p style="font-size:12px; color:var(--text-muted); margin-bottom:20px;">
+        Enter your Supabase Project URL and Anon/Service Key to enable live central licensing across all client shops.
+      </p>
+      <form onsubmit="handleSaveConfig(event)">
+        <div style="margin-bottom:14px;">
+          <label style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Supabase Project URL</label>
+          <input type="url" id="cfgUrlInput" class="input-field font-mono" placeholder="https://your-project.supabase.co" required style="margin-top:6px;">
+        </div>
+        <div style="margin-bottom:20px;">
+          <label style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Supabase Anon / Service Role Key</label>
+          <input type="password" id="cfgKeyInput" class="input-field font-mono" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..." required style="margin-top:6px;">
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('configModal')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Connect Cloud</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 2: Provision / Add New Shop -->
+  <div id="addShopModal" class="modal-backdrop">
+    <div class="modal-box">
+      <h3 style="font-size:18px; font-weight:800; margin-bottom:6px;">➕ Provision / Register New Shop</h3>
+      <p style="font-size:12px; color:var(--text-muted); margin-bottom:18px;">
+        Manually register a shop machine before delivering the POS computer to the client.
+      </p>
+      <form onsubmit="handleSaveNewShop(event)">
+        <div style="margin-bottom:12px;">
+          <label style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Permanent Machine ID *</label>
+          <input type="text" id="addMachineId" class="input-field font-mono" placeholder="e.g. 5A3F-8C12-9D0E" required style="margin-top:4px; text-transform:uppercase;">
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Shop Business Name *</label>
+          <input type="text" id="addShopName" class="input-field" placeholder="e.g. Shanika Super City" required style="margin-top:4px;">
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+          <div>
+            <label style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Owner Phone / WhatsApp</label>
+            <input type="text" id="addOwnerPhone" class="input-field" placeholder="077 123 4567" style="margin-top:4px;">
+          </div>
+          <div>
+            <label style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">City / Town</label>
+            <input type="text" id="addCity" class="input-field" placeholder="Kandy" style="margin-top:4px;">
+          </div>
+        </div>
+        <div style="margin-bottom:20px;">
+          <label style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Initial License Plan</label>
+          <select id="addPlanSelect" class="input-field" style="margin-top:4px; background:#0f172a;">
+            <option value="TRIAL_14">Evaluation Trial (14 Days)</option>
+            <option value="MONTHLY_30">Monthly Subscription (30 Days)</option>
+            <option value="ANNUAL_365">Annual License (1 Year)</option>
+            <option value="LIFETIME">Full Lifetime License</option>
+          </select>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('addShopModal')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Provision Shop</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // State
+    let supabase = null;
+    let allShops = [];
+    let currentFilter = 'ALL';
+    let searchQuery = '';
+
+    function showToast(msg, isError = false) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.style.display = 'flex';
+      t.style.borderColor = isError ? '#ef4444' : '#10b981';
+      t.style.color = isError ? '#fca5a5' : '#6ee7b7';
+      setTimeout(() => { t.style.display = 'none'; }, 3500);
+    }
+
+    function initSupabase() {
+      const url = localStorage.getItem('pos_sb_url') || '';
+      const key = localStorage.getItem('pos_sb_key') || '';
+      const statusPill = document.getElementById('cloudStatusPill');
+
+      if (!url || !key) {
+        statusPill.className = 'pill pill-amber';
+        statusPill.textContent = '⚠️ Cloud Setup Required';
+        return false;
+      }
+
+      try {
+        supabase = window.supabase.createClient(url, key);
+        statusPill.className = 'pill pill-green';
+        statusPill.textContent = '● Cloud Live Connected';
+        return true;
+      } catch (err) {
+        statusPill.className = 'pill pill-rose';
+        statusPill.textContent = '❌ Connection Error';
+        return false;
+      }
+    }
+
+    async function fetchShops() {
+      if (!supabase && !initSupabase()) {
+        openConfigModal();
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('shop_licenses')
+          .select('*')
+          .order('last_heartbeat_at', { ascending: false });
+
+        if (error) throw error;
+        allShops = data || [];
+        renderDashboard();
+      } catch (err) {
+        showToast('Failed to fetch shops: ' + err.message, true);
+      }
+    }
+
+    function renderDashboard() {
+      updateKPIs();
+      const container = document.getElementById('shopsContainer');
+      const emptyState = document.getElementById('emptyState');
+
+      const filtered = allShops.filter(shop => {
+        // Filter by tab
+        const isLocked = Boolean(shop.maintenance_mode);
+        const daysLeft = computeDaysLeft(shop);
+        const isExpiring = !isLocked && daysLeft <= 7 && daysLeft > 0;
+        const isExpired = !isLocked && daysLeft <= 0 && shop.license_tier !== 'LIFETIME';
+
+        if (currentFilter === 'ACTIVE' && (isLocked || isExpired)) return false;
+        if (currentFilter === 'EXPIRING' && !isExpiring) return false;
+        if (currentFilter === 'LOCKED' && (!isLocked && !isExpired)) return false;
+
+        // Search query
+        if (searchQuery) {
+          const q = searchQuery.toLowerCase();
+          const matchName = (shop.shop_name || '').toLowerCase().includes(q);
+          const matchPhone = (shop.owner_phone || '').toLowerCase().includes(q);
+          const matchCity = (shop.city || '').toLowerCase().includes(q);
+          const matchId = (shop.machine_id || '').toLowerCase().includes(q);
+          if (!matchName && !matchPhone && !matchCity && !matchId) return false;
+        }
+
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = '';
+        emptyState.style.display = 'block';
+        return;
+      }
+
+      emptyState.style.display = 'none';
+      container.innerHTML = filtered.map(shop => renderShopCard(shop)).join('');
+    }
+
+    function computeDaysLeft(shop) {
+      if (shop.license_tier === 'LIFETIME') return 9999;
+      const targetDate = shop.expires_at || shop.trial_end;
+      if (!targetDate) return 0;
+      const ms = new Date(targetDate).getTime() - Date.now();
+      return Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
+    }
+
+    function timeAgo(dateString) {
+      if (!dateString) return 'Never';
+      const sec = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
+      if (sec < 60) return 'Just now';
+      if (sec < 3600) return Math.floor(sec / 60) + 'm ago';
+      if (sec < 86400) return Math.floor(sec / 3600) + 'h ago';
+      return Math.floor(sec / 86400) + 'd ago';
+    }
+
+    function isRecentlyOnline(dateString) {
+      if (!dateString) return false;
+      return (Date.now() - new Date(dateString).getTime()) < (60 * 60 * 1000);
+    }
+
+    function renderShopCard(shop) {
+      const daysLeft = computeDaysLeft(shop);
+      const isOnline = isRecentlyOnline(shop.last_heartbeat_at);
+      const isLocked = Boolean(shop.maintenance_mode);
+
+      // Status pill
+      let statusPill = '';
+      if (isLocked) {
+        statusPill = '<span class="pill pill-rose">🔒 Remote Locked</span>';
+      } else if (shop.license_tier === 'LIFETIME') {
+        statusPill = '<span class="pill pill-green">⚡ Lifetime Active</span>';
+      } else if (daysLeft > 7) {
+        statusPill = '<span class="pill pill-green">✓ ' + daysLeft + ' Days Left</span>';
+      } else if (daysLeft > 0) {
+        statusPill = '<span class="pill pill-amber">⚠️ ' + daysLeft + ' Days Left</span>';
+      } else {
+        statusPill = '<span class="pill pill-rose">🔴 Expired</span>';
+      }
+
+      const onlineIndicator = isOnline
+        ? '<span style="color:#34d399; font-weight:700; font-size:12px;">🟢 Online (' + timeAgo(shop.last_heartbeat_at) + ')</span>'
+        : '<span style="color:#94a3b8; font-size:12px;">⚪ Offline (' + timeAgo(shop.last_heartbeat_at) + ')</span>';
+
+      const safeName = (shop.shop_name || 'My POS Shop').replace(/"/g, '&quot;');
+      const cleanPhone = (shop.owner_phone || '').replace(/\D/g, '');
+      const expiryFormatted = (shop.expires_at || shop.trial_end)
+        ? new Date(shop.expires_at || shop.trial_end).toLocaleDateString()
+        : 'None';
+
+      const waMessage = encodeURIComponent(
+        `Hello ${shop.shop_name || 'Shop Owner'}! 👋\n` +
+        `This is JK Soft POS Support (070 522 4007).\n` +
+        `Your POS system license for machine [${shop.machine_id}] expires on ${expiryFormatted} (${daysLeft} days remaining).\n` +
+        `Please renew your subscription to ensure smooth checkout operations.\n` +
+        `Thank you!`
+      );
+
+      return `
+        <div class="shop-card">
+          <div>
+            <!-- Card Header -->
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
+              <div>
+                <h3 style="font-size:17px; font-weight:800; color:#fff;">${shop.shop_name || 'My POS Shop'}</h3>
+                <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">
+                  📍 ${shop.city || 'Sri Lanka'} ${shop.owner_phone ? '• 📞 ' + shop.owner_phone : ''}
+                </div>
+              </div>
+              <div>${statusPill}</div>
+            </div>
+
+            <!-- Hardware & Online info -->
+            <div style="background:#070b14; border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-bottom:14px; font-size:12px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span class="font-mono text-muted">MACHINE ID:</span>
+                <span class="font-mono" style="color:#38bdf8; font-weight:700; letter-spacing:1px;">${shop.machine_id}</span>
+                <button class="btn btn-secondary" style="padding:2px 8px; font-size:10px;" onclick="copyText('${shop.machine_id}')">📋 Copy</button>
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px; border-top:1px solid #1e293b; padding-top:6px;">
+                <span class="text-muted">HEARTBEAT:</span>
+                <span>${onlineIndicator}</span>
+              </div>
+            </div>
+
+            <!-- Plan & Expiry Details -->
+            <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:16px;">
+              <div>
+                <div class="text-muted" style="font-size:10px; text-transform:uppercase; font-weight:700;">Plan Tier</div>
+                <div style="font-weight:700; color:#fff; margin-top:2px;">${shop.license_tier || 'TRIAL'}</div>
+              </div>
+              <div style="text-align:right;">
+                <div class="text-muted" style="font-size:10px; text-transform:uppercase; font-weight:700;">Expires On</div>
+                <div style="font-weight:700; color:${daysLeft <= 5 && shop.license_tier !== 'LIFETIME' ? '#f87171' : '#fff'}; margin-top:2px;">
+                  ${expiryFormatted}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Action Buttons Toolbar -->
+          <div style="border-top:1px solid var(--border); padding-top:14px;">
+            <div style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:8px;">
+              ⚡ 1-Click Remote Actions:
+            </div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button class="btn btn-emerald" style="padding:6px 10px; font-size:11px;" onclick="remoteRenew('${shop.machine_id}', 30)">
+                🗓️ +30 Days
+              </button>
+              <button class="btn btn-primary" style="padding:6px 10px; font-size:11px;" onclick="remoteRenew('${shop.machine_id}', 365)">
+                📅 1 Year
+              </button>
+              <button class="btn btn-secondary" style="padding:6px 10px; font-size:11px; color:#38bdf8;" onclick="remoteLifetime('${shop.machine_id}')">
+                ⚡ Lifetime
+              </button>
+              <button class="btn ${isLocked ? 'btn-emerald' : 'btn-rose'}" style="padding:6px 10px; font-size:11px;" onclick="remoteToggleLock('${shop.machine_id}', ${!isLocked})">
+                ${isLocked ? '🔓 Unlock' : '🔒 Lockout'}
+              </button>
+              ${cleanPhone ? `
+                <a class="btn btn-whatsapp" style="padding:6px 10px; font-size:11px;" href="https://wa.me/94${cleanPhone.replace(/^0/, '')}?text=${waMessage}" target="_blank">
+                  💬 WhatsApp
+                </a>
+              ` : ''}
+              <button class="btn btn-secondary" style="padding:6px 8px; font-size:11px; margin-left:auto; color:#ef4444;" onclick="remoteDeleteShop('${shop.machine_id}', '${safeName}')">
+                🗑️
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function updateKPIs() {
+      const total = allShops.length;
+      let online = 0;
+      let expiring = 0;
+      let locked = 0;
+      let monthlyActiveCount = 0;
+
+      allShops.forEach(s => {
+        if (isRecentlyOnline(s.last_heartbeat_at)) online++;
+        const isLock = Boolean(s.maintenance_mode);
+        const days = computeDaysLeft(s);
+        if (isLock || (days <= 0 && s.license_tier !== 'LIFETIME')) locked++;
+        else if (days <= 7) expiring++;
+
+        if (s.license_tier === 'MONTHLY' && !isLock && days > 0) {
+          monthlyActiveCount++;
+        }
+      });
+
+      document.getElementById('kpiTotalShops').textContent = total;
+      document.getElementById('kpiOnlineNow').textContent = online;
+      document.getElementById('kpiExpiringWeek').textContent = expiring;
+      document.getElementById('kpiLocked').textContent = locked;
+      document.getElementById('kpiEstMRR').textContent = 'Rs. ' + (monthlyActiveCount * 2500).toLocaleString();
+    }
+
+    // Remote Actions
+    async function remoteRenew(machineId, days = 30) {
+      if (!confirm(`Extend license by +${days} days for machine [${machineId}]?`)) return;
+      try {
+        const shop = allShops.find(s => s.machine_id === machineId);
+        let baseMs = Date.now();
+        if (shop && shop.expires_at) {
+          const curMs = new Date(shop.expires_at).getTime();
+          if (curMs > baseMs) baseMs = curMs; // Extend from current expiry!
+        }
+        const newExpiry = new Date(baseMs + days * 24 * 60 * 60 * 1000).toISOString();
+
+        const { error } = await supabase
+          .from('shop_licenses')
+          .update({
+            license_tier: days > 60 ? 'ANNUAL' : 'MONTHLY',
+            license_status: 'ACTIVE',
+            expires_at: newExpiry,
+            maintenance_mode: false,
+            updated_at: new Date().toISOString()
+          })
+          .eq('machine_id', machineId);
+
+        if (error) throw error;
+        showToast(`✓ Machine [${machineId}] renewed by +${days} days!`);
+        fetchShops();
+      } catch (err) {
+        showToast('Renewal failed: ' + err.message, true);
+      }
+    }
+
+    async function remoteLifetime(machineId) {
+      if (!confirm(`Grant LIFETIME Full License to machine [${machineId}]?`)) return;
+      try {
+        const { error } = await supabase
+          .from('shop_licenses')
+          .update({
+            license_tier: 'LIFETIME',
+            license_status: 'ACTIVE',
+            expires_at: null,
+            maintenance_mode: false,
+            updated_at: new Date().toISOString()
+          })
+          .eq('machine_id', machineId);
+
+        if (error) throw error;
+        showToast(`⚡ Machine [${machineId}] activated as LIFETIME!`);
+        fetchShops();
+      } catch (err) {
+        showToast('Lifetime activation failed: ' + err.message, true);
+      }
+    }
+
+    async function remoteToggleLock(machineId, lockState) {
+      const promptMsg = lockState
+        ? `⚠️ Are you sure you want to REMOTE LOCK this shop screen? The cashier will see the payment lockout screen.`
+        : `Unlock this shop machine now?`;
+      if (!confirm(promptMsg)) return;
+
+      try {
+        const { error } = await supabase
+          .from('shop_licenses')
+          .update({
+            maintenance_mode: lockState,
+            updated_at: new Date().toISOString()
+          })
+          .eq('machine_id', machineId);
+
+        if (error) throw error;
+        showToast(lockState ? `🔒 Lockout enabled for [${machineId}]` : `✓ Machine [${machineId}] unlocked`);
+        fetchShops();
+      } catch (err) {
+        showToast('Toggle failed: ' + err.message, true);
+      }
+    }
+
+    async function remoteDeleteShop(machineId, shopName) {
+      if (!confirm(`Delete records for "${shopName}" (${machineId})? This cannot be undone.`)) return;
+      try {
+        const { error } = await supabase
+          .from('shop_licenses')
+          .delete()
+          .eq('machine_id', machineId);
+
+        if (error) throw error;
+        showToast(`Shop removed successfully`);
+        fetchShops();
+      } catch (err) {
+        showToast('Delete failed: ' + err.message, true);
+      }
+    }
+
+    // UI Helpers
+    function handleSearch() {
+      searchQuery = document.getElementById('searchInput').value.trim();
+      renderDashboard();
+    }
+
+    function setFilter(filter, btn) {
+      currentFilter = filter;
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      renderDashboard();
+    }
+
+    function copyText(text) {
+      navigator.clipboard.writeText(text);
+      showToast('✓ Machine ID copied to clipboard');
+    }
+
+    function openConfigModal() {
+      document.getElementById('cfgUrlInput').value = localStorage.getItem('pos_sb_url') || '';
+      document.getElementById('cfgKeyInput').value = localStorage.getItem('pos_sb_key') || '';
+      document.getElementById('configModal').style.display = 'flex';
+    }
+
+    function openAddShopModal() {
+      document.getElementById('addShopModal').style.display = 'flex';
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).style.display = 'none';
+    }
+
+    function handleSaveConfig(e) {
+      e.preventDefault();
+      const url = document.getElementById('cfgUrlInput').value.trim();
+      const key = document.getElementById('cfgKeyInput').value.trim();
+      localStorage.setItem('pos_sb_url', url);
+      localStorage.setItem('pos_sb_key', key);
+      closeModal('configModal');
+      showToast('✓ Supabase credentials saved');
+      initSupabase();
+      fetchShops();
+    }
+
+    async function handleSaveNewShop(e) {
+      e.preventDefault();
+      const machineId = document.getElementById('addMachineId').value.trim().toUpperCase();
+      const shopName = document.getElementById('addShopName').value.trim();
+      const ownerPhone = document.getElementById('addOwnerPhone').value.trim();
+      const city = document.getElementById('addCity').value.trim();
+      const plan = document.getElementById('addPlanSelect').value;
+
+      let tier = 'TRIAL';
+      let status = 'TRIAL_ACTIVE';
+      let expiresAt = null;
+      let trialEnd = null;
+      const now = new Date();
+
+      if (plan === 'TRIAL_14') {
+        trialEnd = new Date(now.getTime() + 14 * 24 * 3600 * 1000).toISOString();
+      } else if (plan === 'MONTHLY_30') {
+        tier = 'MONTHLY';
+        status = 'ACTIVE';
+        expiresAt = new Date(now.getTime() + 30 * 24 * 3600 * 1000).toISOString();
+      } else if (plan === 'ANNUAL_365') {
+        tier = 'ANNUAL';
+        status = 'ACTIVE';
+        expiresAt = new Date(now.getTime() + 365 * 24 * 3600 * 1000).toISOString();
+      } else if (plan === 'LIFETIME') {
+        tier = 'LIFETIME';
+        status = 'ACTIVE';
+      }
+
+      try {
+        const { error } = await supabase.from('shop_licenses').upsert({
+          machine_id: machineId,
+          shop_name: shopName,
+          owner_phone: ownerPhone,
+          city: city,
+          license_tier: tier,
+          license_status: status,
+          expires_at: expiresAt,
+          trial_start: now.toISOString(),
+          trial_end: trialEnd,
+          maintenance_mode: false,
+          last_heartbeat_at: now.toISOString(),
+          updated_at: now.toISOString(),
+        });
+
+        if (error) throw error;
+        closeModal('addShopModal');
+        showToast(`✓ Shop "${shopName}" provisioned successfully!`);
+        fetchShops();
+      } catch (err) {
+        showToast('Failed to add shop: ' + err.message, true);
+      }
+    }
+
+    // Auto-init on load
+    window.addEventListener('DOMContentLoaded', () => {
+      initSupabase();
+      fetchShops();
+    });
+  </script>
+</body>
+</html>

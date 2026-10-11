@@ -75,10 +75,106 @@ async function syncUnsyncedRecords() {
       }
     }
 
+    // Sync cloud license & hardware heartbeat
+    await syncCloudLicense(supabase);
+
     notifyRenderer('synced');
   } catch (err) {
     console.error('Sync error:', err);
     notifyRenderer('error');
+  }
+}
+
+/**
+ * Send heartbeat to Supabase and pull any remote license renewals / lockout commands
+ */
+export async function syncCloudLicense(supabaseClient?: any): Promise<boolean> {
+  const { url, key } = getSupabaseConfig();
+  if (!url || !key) return false;
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { createClient } = require('@supabase/supabase-js');
+    const supabase = supabaseClient || createClient(url, key);
+
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { getMachineId, getLicenseStatus, applyCloudLicenseUpdate, applyRemoteMaintenanceState } = require('../license/licenseManager');
+    const machineId = getMachineId();
+    const lic = getLicenseStatus();
+
+    const db = getDb();
+    const shopName = (db.prepare("SELECT value FROM settings WHERE key = 'shop_name'").get() as any)?.value || 'My POS Shop';
+    const shopPhone = (db.prepare("SELECT value FROM settings WHERE key = 'shop_phone'").get() as any)?.value || '';
+    const shopCity = (db.prepare("SELECT value FROM settings WHERE key = 'shop_address'").get() as any)?.value || '';
+
+    // Fetch cloud record for this machine
+    const { data: cloudRow, error } = await supabase
+      .from('shop_licenses')
+      .select('*')
+      .eq('machine_id', machineId)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('[SyncEngine] Cloud license fetch warning:', error.message);
+      return false;
+    }
+
+    if (!cloudRow) {
+      // Auto-register new machine in cloud database!
+      await supabase.from('shop_licenses').insert({
+        machine_id: machineId,
+        shop_name: shopName,
+        owner_phone: shopPhone,
+        city: shopCity,
+        license_tier: lic.tier,
+        license_status: lic.status,
+        license_key: lic.licenseKey || null,
+        expires_at: lic.expiresAt || null,
+        trial_start: lic.trialStart || null,
+        trial_end: lic.trialEnd || null,
+        maintenance_mode: false,
+        last_heartbeat_at: new Date().toISOString(),
+        client_app_version: '1.0.0',
+      });
+      console.log(`[SyncEngine] Auto-registered shop machine [${machineId}] in Central Cloud.`);
+    } else {
+      // 1. Update heartbeat & current metadata
+      await supabase
+        .from('shop_licenses')
+        .update({
+          shop_name: shopName,
+          owner_phone: shopPhone || cloudRow.owner_phone,
+          city: shopCity || cloudRow.city,
+          last_heartbeat_at: new Date().toISOString(),
+          client_app_version: '1.0.0',
+        })
+        .eq('machine_id', machineId);
+
+      // 2. Check & apply remote maintenance lockout if set by vendor
+      applyRemoteMaintenanceState({
+        active: Boolean(cloudRow.maintenance_mode),
+        message: cloudRow.maintenance_message,
+      });
+
+      // 3. Check & apply remote license renewal / tier update
+      const updated = applyCloudLicenseUpdate({
+        tier: cloudRow.license_tier,
+        status: cloudRow.license_status,
+        expiresAt: cloudRow.expires_at,
+        licenseKey: cloudRow.license_key,
+        trialStart: cloudRow.trial_start,
+        trialEnd: cloudRow.trial_end,
+      });
+
+      if (updated) {
+        console.log(`[SyncEngine] Remote license update applied successfully for machine: ${machineId}`);
+      }
+    }
+
+    return true;
+  } catch (err) {
+    console.warn('[SyncEngine] syncCloudLicense exception:', err);
+    return false;
   }
 }
 
